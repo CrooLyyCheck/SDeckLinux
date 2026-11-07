@@ -62,7 +62,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 | Physical buttons/display | Interactive user test pending; device connection alone is not acceptance |
 | Profile regression | All 64 backed-up profile/resource files present and SHA256-identical after host tests; old launcher/desktop/installed installer identical |
 | Wine fixes | Existing static audit passed RPM SHA256 checks and required implementation clues for user32, dnsapi, winebus, hidclass |
-| Real-host deactivation | Dry-run inspected; full stop/remove/restore postponed during the user's interactive OAuth test |
+| Real-host deactivation | Dry-run inspected; scoped restoration of current real MIME data matches the original backup byte-for-byte; full stop/remove/restore postponed during the user's interactive OAuth test |
 
 Local safe test evidence is under `$XDG_STATE_HOME/deckbridge/diagnostics`;
 `native-smoke.json` records observed native executable identity. Wine static audit
@@ -84,6 +84,14 @@ The user has agreed to perform Marketplace OAuth and the pre-existing Wine Test
 **Linux OK** physical key check; awaiting their actual result. Keep the handler
 available until that flow finishes. Then test real-host deactivation/reinstall
 outside a callback flow and record the MIME/instance/profile observations.
+
+Final repository-only hardening (strict client response validation, case-sensitive
+Unix executable matching and server-only `serve --config`) has passed tests but
+is not yet reloaded into the installed runtime. Pending runtime files are
+`protocol.py`, `wine.py`, `client.py`, `__main__.py`. Apply the current checkout
+with the explicit-prefix installer after the interactive flow; it also refreshes
+the launcher's bytecode-cache setting. The active installed snapshot has already
+passed the real URI/native-process observations described above.
 
 If login still fails, locate whether the native browser invokes the handler,
 whether the daemon forwards it, and whether Elgato continues the flow. Collect

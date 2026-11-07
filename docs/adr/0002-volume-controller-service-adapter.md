@@ -2,6 +2,12 @@
 
 Status: accepted, 2026-11-08. Scope: `com.elgato.volume-controller` 2.0.5.201.
 
+Follow-up amendment: user-requested System output control now has a separate
+default-off `allow_system_write` gate. Named native PNG icons and a text preference
+were added without vendor patches; event-only streams are filtered in the adapter
+view. The original decision remains unchanged. Earlier no-global-write statements
+below describe the initial accepted fixture slice.
+
 ## Problem and evidence
 
 The original plugin installs and connects to the Stream Deck SDK after the

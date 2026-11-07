@@ -172,12 +172,73 @@ class RouterContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app["volume"], 0.5)
         self.assertEqual(app["activity"], 2)
         self.assertEqual(app["displayName"], "Test player żółć")
-        image = await self.rpc(
-            router,
-            "getApplicationInstanceImage",
-            {"processID": app["processID"], "imageSize": 262244},
-        )
+        with patch.object(router.icons, "image", new_callable=AsyncMock, return_value=None):
+            image = await self.rpc(
+                router,
+                "getApplicationInstanceImage",
+                {"processID": app["processID"], "imageSize": 262244},
+            )
         self.assertIsNone(image["result"]["image"])
+
+    async def test_native_png_and_post_enumeration_system_resync(self):
+        backend = prepared_backend()
+        backend.system = {"volume": 0.65, "mute": False}
+        router = Router(backend)
+        await self.rpc(router, "getApplicationInstanceCount")
+        with patch.object(router.icons, "image", new_callable=AsyncMock, return_value="cG5nIQ=="):
+            result = await self.rpc(
+                router, "getApplicationInstanceImage", {"processID": 1, "imageSize": 262244}
+            )
+        self.assertEqual(result["result"]["image"], "cG5nIQ==")
+        self.assertEqual(result["result"]["imageSize"], 4)
+        self.assertEqual(router.followup_events()[0]["params"]["volume"], 0.65)
+        self.assertEqual(router.followup_events(), [])
+
+    async def test_text_preference_never_loads_native_images(self):
+        router = Router(prepared_backend(), display="text")
+        await self.rpc(router, "getApplicationInstanceCount")
+        with patch.object(router.icons, "image", new_callable=AsyncMock) as image:
+            result = await self.rpc(
+                router, "getApplicationInstanceImage", {"processID": 1, "imageSize": 262244}
+            )
+        image.assert_not_called()
+        self.assertIsNone(result["result"]["image"])
+
+    async def test_event_sounds_are_hidden_without_removing_normal_music(self):
+        backend = prepared_backend()
+        objects = graph()
+        objects[1]["info"]["props"]["media.role"] = "event"
+        event = sessions_from_graph(objects, pulse(), 100)[0]
+        normal = dataclasses.replace(
+            event, id="pw:100:11", serial=11, application_key="app:music", event_stream=False
+        )
+        backend.applications = group_sessions([event, normal])
+        router = Router(backend)
+        self.assertEqual(
+            (await self.rpc(router, "getApplicationInstanceCount"))["result"], {"count": 1}
+        )
+        backend.applications = group_sessions([normal])
+        _, previous = router.notifications({})
+        backend.applications = group_sessions([event, normal])
+        self.assertEqual(router.notifications(previous)[0], [])
+        self.assertEqual(len(Router(backend, hide_events=False).apps()), 2)
+
+    async def test_system_actions_require_zero_and_use_the_separate_backend_gate(self):
+        backend = prepared_backend(True)
+        router = Router(backend)
+        with patch.object(
+            backend, "set_system", new_callable=AsyncMock, return_value={"status": "applied"}
+        ) as setter:
+            response = await self.rpc(
+                router, "setSystemDefaultDeviceVolume", {"processID": 0, "volume": 0.7}
+            )
+            self.assertIn("result", response)
+            setter.assert_awaited_once_with(volume=0.7)
+            response = await self.rpc(
+                router, "setSystemDefaultDeviceMute", {"processID": 1, "mute": True}
+            )
+            self.assertIn("error", response)
+            self.assertEqual(setter.await_count, 1)
 
     async def test_no_global_volume_or_arbitrary_shell(self):
         router = Router(prepared_backend(True))
@@ -243,3 +304,60 @@ class RouterContractTests(unittest.IsolatedAsyncioTestCase):
             response = await router.request(raw)
             self.assertIn("error", response)
             self.assertNotIn("SYNTHETICSECRET", json.dumps(response))
+
+
+class SystemOutputTests(unittest.IsolatedAsyncioTestCase):
+    async def test_disabled_global_gate_never_calls_external_commands(self):
+        backend = prepared_backend(True)
+        with patch("deckbridge.backends.audio.pipewire.command", new_callable=AsyncMock) as command:
+            with self.assertRaisesRegex(BridgeError, "global_audio_control_disabled"):
+                await backend.set_system(volume=0.5)
+            command.assert_not_called()
+
+    async def test_only_fresh_named_default_output_is_mutated(self):
+        backend = prepared_backend()
+        backend.allow_system_write = True
+        info = {"cookie": "epoch", "default_sink_name": "chosen-output"}
+        sink = {
+            "index": 12,
+            "name": "chosen-output",
+            "properties": {"object.serial": "99"},
+            "volume": {"left": {"value": 32768}, "right": {"value": 16384}},
+        }
+        with (
+            patch(
+                "deckbridge.backends.audio.pipewire.command",
+                new_callable=AsyncMock,
+                side_effect=[info, [sink], [sink], info, None, graph()],
+            ) as command,
+            patch.object(backend, "refresh", new_callable=AsyncMock),
+        ):
+            await backend.set_system(volume=0.25)
+        self.assertEqual(
+            command.await_args_list[4].args,
+            ("/usr/bin/pactl", "set-sink-volume", "12", "16384", "8192"),
+        )
+
+    async def test_changed_default_or_reused_output_handle_fails_before_write(self):
+        backend = prepared_backend()
+        backend.allow_system_write = True
+        info = {"cookie": "epoch", "default_sink_name": "chosen-output"}
+        sink = {
+            "index": 12,
+            "name": "chosen-output",
+            "properties": {"object.serial": "99"},
+            "volume": {"left": {"value": 65536}},
+        }
+        for fresh, fresh_info in [
+            ([dict(sink, properties={"object.serial": "100"})], info),
+            ([sink], dict(info, default_sink_name="different")),
+            ([sink], dict(info, cookie="another-epoch")),
+        ]:
+            with patch(
+                "deckbridge.backends.audio.pipewire.command",
+                new_callable=AsyncMock,
+                side_effect=[info, [sink], fresh, fresh_info],
+            ) as command:
+                with self.assertRaisesRegex(BridgeError, "audio_default_output_changed"):
+                    await backend.set_system(mute=True)
+                self.assertEqual(command.await_count, 4)

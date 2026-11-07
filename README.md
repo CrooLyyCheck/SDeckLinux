@@ -99,16 +99,22 @@ private TOML file, then restart DeckBridge:
 enabled = true
 allow_write = false
 allowed_apps = ["app:io.deckbridge.audio-test"]
+allow_system_write = false
 
 [compat.volume_controller]
 enabled = true
+display = "icons"
+hide_event_streams = true
 ```
 
 `allow_write = false` allows discovery only. With writes enabled, `allowed_apps`
 restricts control to the listed application keys; an empty list allows all listed
 applications. Use `deckbridge audio list` to find actual keys. The audited
 workstation now has writes enabled for normal application use following explicit
-user authorization. The bridge rejects system/device volume writes.
+user authorization. System output volume/mute has a separate opt-in gate:
+`allow_system_write = true`. It controls only the current default output and
+never changes routing. That gate is now enabled on the audited workstation at
+the user's request. Input-device controls are outside this adapter.
 
 ```bash
 deckbridge audio list
@@ -118,9 +124,24 @@ deckbridge audio set-mute app:io.deckbridge.audio-test true
 ```
 
 Direct PipeWire streams without a PipeWire-Pulse control handle are visible but
-read-only. App icons use the original plugin's fallback. Automatic MK.2 profile
+read-only. Native application icons use existing Fedora GI/GTK3/GdkPixbuf packages
+in a bounded worker, with the original text fallback if no named icon is found.
+The original Auto profile adds its own label to an icon. Choose icon plus label
+or text only, without changing vendor files:
+
+```bash
+deckbridge volume-controller display icons
+deckbridge volume-controller display text
+```
+
+The command retains a private config backup and restarts the bridge. Event and
+notification sounds such as libcanberra are hidden by default from this plugin;
+set `hide_event_streams = false` to show them again. Host audio listing remains
+complete. Automatic MK.2 profile
 discovery and one physical 100% → 95% adjustment passed on an isolated native
-test stream. Other apps were discovered without automated volume changes.
+test stream. The user subsequently confirmed normal app control, System control,
+native icons and removal of event-stream flicker. No automatic global-volume
+test was performed. Property-inspector UI acceptance is tracked separately.
 
 Compatibility code is organized by responsibility:
 
@@ -128,6 +149,7 @@ Compatibility code is organized by responsibility:
 deckbridge/compat/sdeck/oauth/                # Stream Deck URL/OAuth transport
 deckbridge/compat/plugins/volume_controller/ # Versioned plugin protocol/peer checks
 deckbridge/backends/audio/                   # Reusable Linux audio model/backend
+deckbridge/backends/desktop/                 # Native desktop icon lookup
 ```
 
 ## Disable or remove integration
@@ -135,8 +157,9 @@ deckbridge/backends/audio/                   # Reusable Linux audio model/backen
 Disable just callback forwarding with `deep_links = false` in `[features]`, then
 restart the service. Removing a native mapping disables that target.
 Set `[compat.volume_controller] enabled = false` to disable just the plugin
-adapter, `[audio] allow_write = false` for read-only audio, or `[audio] enabled =
+adapter, `[audio] allow_write = false` for read-only application streams, or `[audio] enabled =
 false` with the adapter disabled to stop audio integration entirely.
+Set `allow_system_write = false` independently to disable System control.
 
 For full reversible deactivation:
 

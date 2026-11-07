@@ -18,6 +18,14 @@ from .server import serve
 
 async def main(args: argparse.Namespace) -> dict | None:
     path = socket_path()
+    if args.command == "volume-controller":
+        from .compat.plugins.volume_controller.settings import set_display
+        from .wine import run_bounded
+
+        changed = set_display(default_config(), args.display)
+        if changed:
+            await run_bounded(["/usr/bin/systemctl", "--user", "restart", "deckbridge.service"])
+        return {"display": args.display, "changed": changed}
     if args.command == "serve":
         await serve(load(args.config), path)
         return None
@@ -62,6 +70,10 @@ def entrypoint() -> int:
     sub.add_parser("serve").add_argument("--config", type=Path, default=default_config())
     for command in ("diagnose", "capabilities"):
         sub.add_parser(command)
+    volume_controller = sub.add_parser("volume-controller").add_subparsers(
+        dest="vc_command", required=True
+    )
+    volume_controller.add_parser("display").add_argument("display", choices=("icons", "text"))
     for command in ("deep-link", "handle-uri", "launch", "open-url"):
         sub.add_parser(command).add_argument("value")
     audio = sub.add_parser("audio").add_subparsers(dest="audio_command", required=True)

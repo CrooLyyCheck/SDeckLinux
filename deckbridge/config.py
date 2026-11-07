@@ -38,6 +38,7 @@ class AudioConfig:
     enabled: bool = False
     allow_write: bool = False
     allowed_apps: tuple[str, ...] = ()
+    allow_system_write: bool = False
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,8 @@ class Config:
     urls: dict[str, str]
     audio: AudioConfig = field(default_factory=AudioConfig)
     volume_controller: bool = False
+    volume_controller_display: str = "icons"
+    volume_controller_hide_events: bool = True
 
 
 def absolute(value: object) -> Path:
@@ -105,23 +108,31 @@ def load(path: Path) -> Config:
     audio, compat = data.get("audio", {}), data.get("compat", {})
     if (
         not isinstance(audio, dict)
-        or set(audio) - {"enabled", "allow_write", "allowed_apps"}
+        or set(audio) - {"enabled", "allow_write", "allowed_apps", "allow_system_write"}
         or not isinstance(compat, dict)
         or set(compat) - {"volume_controller"}
     ):
         raise BridgeError("invalid_audio_config")
     adapter = compat.get("volume_controller", {})
-    if not isinstance(adapter, dict) or set(adapter) - {"enabled"}:
+    if not isinstance(adapter, dict) or set(adapter) - {"enabled", "display", "hide_event_streams"}:
         raise BridgeError("invalid_audio_config")
     enabled = audio.get("enabled", False)
     write, adapter_enabled = audio.get("allow_write", False), adapter.get("enabled", False)
     allowed_apps = audio.get("allowed_apps", [])
+    system_write = audio.get("allow_system_write", False)
+    display = adapter.get("display", "icons")
+    hide_events = adapter.get("hide_event_streams", True)
     if (
-        any(type(v) is not bool for v in (enabled, write, adapter_enabled))
+        any(
+            type(v) is not bool
+            for v in (enabled, write, adapter_enabled, system_write, hide_events)
+        )
+        or display not in ("icons", "text")
         or not isinstance(allowed_apps, list)
         or any(not isinstance(v, str) or not v or len(v) > 512 for v in allowed_apps)
         or (adapter_enabled and not enabled)
         or (write and not enabled)
+        or (system_write and not enabled)
     ):
         raise BridgeError("invalid_audio_config")
     return Config(
@@ -131,6 +142,8 @@ def load(path: Path) -> Config:
         features["deep_links"],
         {k: tuple(v) for k, v in applications.items()},
         urls,
-        AudioConfig(enabled, write, tuple(allowed_apps)),
+        AudioConfig(enabled, write, tuple(allowed_apps), system_write),
         adapter_enabled,
+        display,
+        hide_events,
     )

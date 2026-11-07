@@ -21,6 +21,8 @@ class Session:
     channels: tuple[int, ...]  # PulseAudio scalar units, 65536 = 100%.
     mute: bool
     pulse_index: int | None
+    icon_name: str | None = None
+    event_stream: bool = False
 
     @property
     def volume(self) -> float:
@@ -60,6 +62,8 @@ def group_sessions(sessions: list[Session]) -> list[dict]:
             "mute": all(s.mute for s in members),
             "mixed_mute": len({s.mute for s in members}) > 1,
             "controllable": all(s.pulse_index is not None for s in members),
+            "icon_name": next((s.icon_name for s in members if s.icon_name), None),
+            "event_only": all(s.event_stream for s in members),
             "sessions": [asdict(s) for s in members],
         }
         for key, members in sorted(groups.items())

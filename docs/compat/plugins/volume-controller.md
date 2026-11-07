@@ -31,11 +31,11 @@ the vendor wire format.
 | `getApplicationInstanceCount` | omitted/empty | `{count}` |
 | `getApplicationInstanceAtIndex` | `{index}` | Current application |
 | `getApplicationInstance` | `{processID}` | Current application or gone error |
-| `getApplicationInstanceImage` | `{processID,imageSize}` | Null image; original client renders its fallback |
+| `getApplicationInstanceImage` | `{processID,imageSize}` | Bounded native PNG/base64 or null for text fallback |
 | `getSystemDefaultDevice` | omitted/empty | Read-only `{volume,mute}` |
 | `setApplicationInstanceVolume` | `{processID,volume}` | Scoped backend write, subject to local write policy |
 | `setApplicationInstanceMute` | `{processID,mute}` | Scoped backend write, subject to local write policy |
-| `setSystemDefaultDeviceVolume/Mute` | any | Rejected: `global_audio_control_disabled` |
+| `setSystemDefaultDeviceVolume/Mute` | `{processID:0,volume/mute}` | Current default output; separate `allow_system_write` gate |
 
 Application results contain `processID`, `displayName`, `executableFile`, `volume`,
 `mute`, `activity`. IDs are connection-local, positive synthetic IDs; zero is
@@ -54,9 +54,32 @@ Observed notifications implemented:
 - `currentSystemDefaultDeviceVolumeChanged` / `currentSystemDefaultDeviceMuteChanged`:
   read-only system observations with processID zero.
 
+The original client temporarily stores System under a string key and rekeys it
+to numeric zero when inserting applications. Its image request proves this
+transition completed; the adapter sends `systemDefaultDeviceChanged` afterwards
+to avoid stale initial System values. With no enumerated applications, that
+upstream rekey path is absent; this client edge case is not accepted yet.
+
+Native icons are resolved from stream icon names, application/Flatpak IDs and
+installed XDG desktop metadata, without executing desktop entries. Existing
+Fedora GI/GTK3/GdkPixbuf packages render 96×96 PNGs in a bounded system-Python
+worker. Named icons only; arbitrary paths from streams are rejected. The cache
+has 128 entries, PNGs are limited to 32 KiB and the worker has a four-second
+deadline. Missing packages/icons use text and report diagnostic state.
+
+`display = "icons"` keeps the original Auto profile's icon plus label;
+`display = "text"` returns no PNG so the plugin renders its own text style.
+The upstream Auto profile always labels its icons; pure icon-only presentation
+is not implemented by changing app identities or patching vendor rendering.
+The host CLI `deckbridge volume-controller display icons|text` changes this
+private preference with a backup and service restart. Event-only apps are hidden
+by default using role/event metadata and known libcanberra identity; this does
+not change host discovery, audio routing or playback.
+
 Unknown methods are errors, not success-shaped placeholders. The service does
-not implement arbitrary device routing, polling controls or system mutators.
-It accepts text frames up to 16 KiB, rejects browser Origins, limits queues and
+not implement arbitrary device routing, input-device control or polling controls.
+It accepts request text frames up to 16 KiB (PNG responses are separately bounded),
+rejects browser Origins, limits queues and
 uses bounded handshake/close times. Failed audio notifications close the client
 with a fixed reason rather than leaving a silently stale session. The original
 client reconnects after service updates; allow its own backoff (observed up to
@@ -82,9 +105,17 @@ about 30 seconds), without restarting Stream Deck or replaying actions.
   correctly caused another invocation to stop before any mutation.
 - User authorized normal control of other apps after the fixture test. This
   enables button-driven use; it is not evidence of automated tests on those apps.
-- Global/device controls are outside the bridge; the original device addon
-  retains Wine behavior. Generic Core Audio, custom native icons, manual actions,
-  hardware mute and other models/dials need separate acceptance.
+- Follow-up user acceptance: per-app control works; System control, native icons
+  and removal of libcanberra flicker confirmed after the second implementation.
+  The observed default volume changed from about 43% to 48% over that interactive
+  window; the exact sequence of user actions is not inferred. The bridge made
+  no automatic global test writes or attempted volume restoration.
+- Input/device-specific addon actions retain Wine behavior. Generic Core Audio,
+  manual actions, hardware mute and other models/dials need separate acceptance.
+- Inspector UI remains under diagnosis: actual WebEngine renderer commands hang
+  although the browser process responds. The existing readable Auto inspector
+  includes a Step Size 1–25 control. Do not claim missing controls are repaired
+  just because that HTML exists or the audio service works.
 
 See [TESTING](../../TESTING.md) for opt-in commands and
 [ADR 0002](../../adr/0002-volume-controller-service-adapter.md) for the design.

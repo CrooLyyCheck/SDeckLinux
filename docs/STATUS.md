@@ -9,12 +9,55 @@ application-audio backend. Marketplace OAuth passed a real flow. The unchanged
 lists native/Flatpak apps and controls a real native stream from the MK.2 dynamic
 Auto profile. After the fixture test, the user separately authorized normal
 control of other applications; that configuration is active. No automated volume
-changes were made to those apps. Global bridge writes remain blocked.
+changes were made to those apps. System output control now has a separate opt-in gate, enabled at user request;
+see the follow-up evidence below.
 
 Acceptance is bounded: CLI volume/mute/restore and physical 100% → 95% passed on
 the isolated native fixture. Hardware mute, manual actions, dials and other device
 models remain untested. New bridge-native GUI actions and Wayland input remain
 separate roadmap gates. No generic Windows Core Audio translation is claimed.
+
+## Follow-up: system volume, icons and property inspectors
+
+The user confirmed normal per-app control, and requested system control, native
+icons with a display preference, event-sound filtering and missing inspector UI.
+The previously deliberate global-write restriction is superseded by a separate
+`audio.allow_system_write` gate (default false, enabled here for user-driven use).
+The new setter selects the current named default sink, validates its server/
+serial/index/default identity before the write, preserves channel balance and
+never changes routing. No automatic global-volume test was performed.
+
+Native icons are resolved through installed XDG desktop metadata and GTK/GdkPixbuf
+in a bounded system-Python worker. Fluxer, Spotify and Helium produced valid
+96×96 PNGs (3861/4021/4889 bytes); the actual original client subsequently received
+two icons. `display = "icons"` uses the original client's icon plus label;
+`display = "text"` uses its text fallback. `deckbridge volume-controller display
+icons|text` edits only the private host preference, retains a backup and restarts
+the bridge. No vendor assets or application profiles are patched.
+
+`hide_event_streams = true` filters event/notification-role streams (including
+libcanberra) from this plugin's view while leaving host discovery intact. The
+new contract tests cover event churn, native PNG responses, text selection,
+system action scope/races and the original client's post-enumeration System
+rekey/synchronization boundary. Current hardware-free suite: 72 tests pass.
+
+The inspector problem remains under active diagnosis. A verified bounded backup
+of 19 registry/profile manifests (134380 bytes) was taken. The user exited via
+Quit and the unchanged launcher restarted the app with temporary loopback-only
+Qt WebEngine diagnostics (`127.0.0.1:23654`). Two targets exist: Tutorial and an
+about:blank inspector. Browser CDP responds, while renderer document commands
+stall; the local inspector files themselves contain the Step Size 1–25 slider.
+No sandbox/security setting was disabled. The debug listener must be removed by
+relaunching normally after diagnosis. Do not equate that diagnostic restart with
+a UI fix. The user confirmed System control, native icons and no libcanberra flicker.
+The observed default level changed from about 43% to 48% during that user-driven
+window; do not infer one exact button/direction from the net change. Local
+metadata evidence is `system-icons-event-filter-smoke.json`. No automatic global
+write was issued. Inspector diagnosis remains pending a separately authorized
+renderer sandbox comparison; sandboxing has not been disabled.
+
+Historical evidence below describes the preceding accepted milestone; global
+writes/icon availability have changed as detailed above.
 
 ## Audited baseline
 
@@ -55,7 +98,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 
 | Check | Result and limit |
 | --- | --- |
-| `make check` | 64 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
+| `make check` | 72 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
 | IPC | Real AF_UNIX request/response, reconnect, malformed/oversized/partial frames, frame deadline, private path/lock/symlink protections |
 | Helper deadline | A real hung Python child is killed and reaped; no indefinite launcher wait |
 | Installer tests | Temporary filesystem: dry-run unchanged, repeated install/deactivate, prior MIME restoration, unrelated/user-modified files preserved |
@@ -91,7 +134,7 @@ data are committed.
 | Physical integration | User confirmed dynamic test column/up/down. Initial scalar-unit bug was corrected and regression-tested. Fresh single Volume Down changed 1.0 to 0.9499969482421875, within one Pulse unit of 95% |
 | Isolation/cleanup | Unlinked pacat timed out, correctly explaining the disappearing column. Replaced with zero samples into an owned low-priority null sink. Fixture process, descriptor and module removed after acceptance |
 | Security | Real unrelated native WebSocket client rejected HTTP 403; temporary transport tests also cover browser Origin rejection, disabled writes and backend-failure disconnect |
-| Default suite | 64 tests: model/channel balance, stale IDs/server epoch, write allowlists, scalar contract/events, transport/process attribution, recursive install/obsolete-file preservation, bounded oversized replies and prior regressions |
+| Default suite | 72 tests: model/channel balance, stale IDs/server epoch, write allowlists, scalar contract/events, transport/process attribution, recursive install/obsolete-file preservation, bounded oversized replies and prior regressions |
 | Regression | Synthetic encoded/Unicode deep-link reached the same original instance after module reorganization; pinned vendor hashes still match; original app was not restarted for audio integration |
 | Normal use | User explicitly approved broadening fixture-only writes to other application streams. Live `[audio]` enabled/write true, empty allowed_apps; private pre-change config backup retained |
 
@@ -146,10 +189,11 @@ repeated; its previous acceptance and a fresh synthetic transport regression are
 separate evidence. For future OAuth regressions, collect only fixed-code/boolean
 observations; the application's own private logs can contain real callback data.
 
-The next small acceptance step is user-driven normal app control and mute, then
-manual-detection actions if needed. No additional automatic real-app mutation is
-authorized by the fixture test. Native-only PipeWire stream control, app icons,
-generic Core Audio and Wayland input are not implemented. Host IPC snapshots over
+The next unresolved boundary is the empty property-inspector renderer. Normal
+app/System/icon/event-filter behavior was confirmed by the user; physical mute
+and manual-detection acceptance remain separate. No additional automatic real-app mutation is
+authorized by the fixture test. Native-only PipeWire stream control, generic Core Audio and Wayland input are
+not implemented. Native named icons are now available as described above. Host IPC snapshots over
 16 KiB fail explicitly; there is no pagination. External Pulse control has a
 small non-atomic identity-check/use window; there are no side-effect retries.
 

@@ -1,7 +1,7 @@
 """PipeWire graph observations, with explicit per-stream pipewire-pulse control.
 
 Direct PipeWire streams remain visible but read-only in this initial backend.
-No default-device or global-volume mutation is implemented.
+Default-output control is separately opt-in and never changes default routing.
 """
 
 from __future__ import annotations
@@ -106,15 +106,29 @@ def sessions_from_graph(objects: list[dict], pulse: list[dict], cookie: int) -> 
                 channels=channels,
                 mute=bool(control["mute"] if control else params.get("mute", False)),
                 pulse_index=control["index"] if control else None,
+                icon_name=props.get("application.icon-name") or props.get("application.icon_name"),
+                event_stream=(
+                    props.get("media.role") in {"event", "notification"}
+                    or bool(props.get("event.id"))
+                    or str(props.get("application.name", "")).casefold() == "libcanberra"
+                    or props.get("application.process.binary") == "canberra-gtk-play"
+                ),
             )
         )
     return sorted(sessions, key=lambda s: s.serial)
 
 
 class AudioBackend:
-    def __init__(self, allow_write: bool = False, allowed_apps: tuple[str, ...] = ()):
+    def __init__(
+        self,
+        allow_write: bool = False,
+        allowed_apps: tuple[str, ...] = (),
+        *,
+        allow_system_write: bool = False,
+    ):
         self.allow_write = allow_write
         self.allowed_apps = allowed_apps
+        self.allow_system_write = allow_system_write
         self.sessions: list[Session] = []
         self.applications: list[dict] = []
         self.system = {"volume": 0.0, "mute": False}
@@ -176,7 +190,50 @@ class AudioBackend:
             "applications": self.applications,
             "system": self.system,
             "write_enabled": self.allow_write,
+            "system_write_enabled": self.allow_system_write,
         }
+
+    async def set_system(self, *, volume=None, mute=None) -> dict:
+        if not self.allow_system_write:
+            raise BridgeError("global_audio_control_disabled")
+        if (volume is None) == (mute is None) or (mute is not None and type(mute) is not bool):
+            raise BridgeError("invalid_params")
+        async with self._action_lock:
+            await self.snapshot()
+            info = await command("/usr/bin/pactl", "-f", "json", "info")
+            sinks = await command("/usr/bin/pactl", "-f", "json", "list", "sinks")
+            sink = next((s for s in sinks if s["name"] == info.get("default_sink_name")), None)
+            if not sink:
+                raise BridgeError("audio_default_output_missing")
+            index = sink.get("index")
+            serial = sink.get("properties", {}).get("object.serial")
+            if type(index) is not int or not str(serial).isdigit():
+                raise BridgeError("audio_invalid_snapshot")
+            channels = tuple(v["value"] for v in sink["volume"].values())
+            values = balanced_channels(channels, volume) if volume is not None else []
+            # Select the named default once, then validate identity immediately before use.
+            fresh = await command("/usr/bin/pactl", "-f", "json", "list", "sinks")
+            current_info = await command("/usr/bin/pactl", "-f", "json", "info")
+            if (
+                info.get("cookie") != current_info.get("cookie")
+                or not any(
+                    s.get("index") == index
+                    and s.get("name") == sink["name"]
+                    and s.get("properties", {}).get("object.serial") == serial
+                    for s in fresh
+                )
+                or current_info.get("default_sink_name") != sink["name"]
+            ):
+                raise BridgeError("audio_default_output_changed")
+            await command(
+                "/usr/bin/pactl",
+                "set-sink-volume" if volume is not None else "set-sink-mute",
+                str(index),
+                *(values if volume is not None else ["1" if mute else "0"]),
+                json_output=False,
+            )
+            await self.refresh(await command("/usr/bin/pw-dump", "--no-colors"))
+            return {"status": "applied", "output_count": 1}
 
     async def run(self) -> None:
         monitor = None

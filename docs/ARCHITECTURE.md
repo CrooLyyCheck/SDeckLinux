@@ -38,6 +38,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.providers` | Capability discovery and native/OAuth/audio dispatch |
 | `deckbridge.diagnostics` | Read-only component and HID visibility observations |
 | `deckbridge.backends.audio` | Linux sessions, stable identities, grouping, graph changes and scoped per-stream control |
+| `deckbridge.backends.desktop` | Bounded native named-icon lookup/rendering using existing system GI packages |
 | `deckbridge.compat.plugins.volume_controller` | Observed vendor contract, process authentication, RPC and notifications |
 | `tools/install.py` | Hash-tracked user integration and scoped MIME restoration |
 | `tools/smoke.py` | Explicit real-host observations, excluded from `make check` |
@@ -131,8 +132,19 @@ PipeWire transaction or persistent application policy is claimed.
 plugin. A failed backend closes the adapter connection to avoid a stale UI and
 reports a fixed diagnostic error; audio failure does not disable OAuth. The
 original plugin owns reconnection. No background retry of audio mutations occurs.
-Direct native streams without Pulse handles are read-only. Global sink/source
+Direct native streams without Pulse handles are read-only. Default-output
+volume/mute has a separate `allow_system_write` gate, false by default. It
+selects the current default's explicit sink handle and revalidates cookie,
+serial/name/index and unchanged default immediately before control. It never
+sets routing or uses a late-resolved `@DEFAULT_SINK@` target. Input/source
 mutators are not implemented. The original device addon remains Wine-owned.
+
+Native icons are backend metadata, not plugin fields. A bounded worker uses
+existing system-Python GI/GTK3/GdkPixbuf so the core daemon needs no new Python
+package dependency. Only named icons/installed desktop metadata are read; no
+desktop Exec is invoked. The adapter chooses PNG or its client's text fallback.
+Filtering event-only streams applies to this plugin view, not the backend's
+complete session inventory.
 
 ## Expansion boundaries
 

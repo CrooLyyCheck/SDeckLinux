@@ -30,6 +30,9 @@ async def run_adapter(config: Config, backend: AudioBackend, *, port: int = 1844
     from ....server import log
 
     status = backend.adapter_status
+    status["display"] = config.volume_controller_display
+    status["hide_event_streams"] = config.volume_controller_hide_events
+    status["icon_images_served"] = 0
     logger = logging.getLogger("deckbridge.volume_controller.websocket")
     logger.handlers = [SafeLog()]
     logger.propagate = False
@@ -51,7 +54,11 @@ async def run_adapter(config: Config, backend: AudioBackend, *, port: int = 1844
         clients.add(connection)
         status["connected_clients"] = len(clients)
         log("volume_controller_connected")
-        router = Router(backend)
+        router = Router(
+            backend,
+            display=config.volume_controller_display,
+            hide_events=config.volume_controller_hide_events,
+        )
 
         async def notifications():
             try:
@@ -78,6 +85,8 @@ async def run_adapter(config: Config, backend: AudioBackend, *, port: int = 1844
             async for message in connection:
                 result = await router.request(message)
                 await connection.send(json.dumps(result))
+                for event in router.followup_events():
+                    await connection.send(json.dumps(event))
                 status["requests_completed"] += 1
                 status["enumerated_applications"] = len(router.enumerated)
                 if "error" in result:

@@ -106,6 +106,7 @@ class Server:
                         "error": self.audio.failure,
                         "application_count": len(self.audio.applications),
                         "write_enabled": self.audio.allow_write,
+                        "system_write_enabled": self.audio.allow_system_write,
                         "volume_controller": dict(self.audio.adapter_status),
                     }
             else:
@@ -168,7 +169,11 @@ async def serve(config: Config, path: Path) -> None:
     fd = lock_socket(path)
     server = None
     audio = (
-        AudioBackend(config.audio.allow_write, config.audio.allowed_apps)
+        AudioBackend(
+            config.audio.allow_write,
+            config.audio.allowed_apps,
+            allow_system_write=config.audio.allow_system_write,
+        )
         if config.audio.enabled
         else None
     )

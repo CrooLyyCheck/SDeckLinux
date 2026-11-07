@@ -5,24 +5,31 @@ from __future__ import annotations
 import json
 
 from ....backends.audio.pipewire import AudioBackend
+from ....backends.desktop.icons import IconProvider
 from ....protocol import BridgeError, reject_constant, unique_object
 
 
 class Router:
-    def __init__(self, backend: AudioBackend):
+    def __init__(self, backend: AudioBackend, *, display: str = "icons", hide_events: bool = True):
         self.backend = backend
         self.ids: dict[str, int] = {}
         self.next_id = 1
         self.requests = 0
         self.enumerated: set[str] = set()
         self.previous_system: dict | None = None
+        self.display, self.hide_events = display, hide_events
+        self.icons = IconProvider()
+        self.sync_system = False
 
     def apps(self) -> list[dict]:
-        for app in self.backend.applications:
+        apps = [
+            a for a in self.backend.applications if not (self.hide_events and a.get("event_only"))
+        ]
+        for app in apps:
             if app["id"] not in self.ids:
                 self.ids[app["id"]] = self.next_id
                 self.next_id += 1
-        return self.backend.applications
+        return apps
 
     def describe(self, app: dict) -> dict:
         return {
@@ -92,11 +99,17 @@ class Router:
                 app = self.by_id(params["processID"])
                 if not app:
                     raise BridgeError("audio_application_gone")
-                # The unmodified client explicitly supports no image and draws its own fallback.
+                image = await self.icons.image(app) if self.display == "icons" else None
+                self.backend.adapter_status["icon_cache_entries"] = len(self.icons.cache)
+                self.backend.adapter_status["icon_error"] = self.icons.failure
+                if image:
+                    status = self.backend.adapter_status
+                    status["icon_images_served"] = status.get("icon_images_served", 0) + 1
+                self.sync_system = True
                 result = {
                     "processID": self.ids[app["id"]],
-                    "image": None,
-                    "imageSize": 0,
+                    "image": image,
+                    "imageSize": len(image) * 3 // 4 - image[-2:].count("=") if image else 0,
                     "imageFormat": "png",
                 }
             elif method == "setApplicationInstanceVolume" and set(params) == {
@@ -113,7 +126,14 @@ class Router:
                     raise BridgeError("audio_application_gone")
                 result = await self.backend.set_target(app["id"], mute=params["mute"])
             elif method in {"setSystemDefaultDeviceVolume", "setSystemDefaultDeviceMute"}:
-                raise BridgeError("global_audio_control_disabled")
+                field = "volume" if method == "setSystemDefaultDeviceVolume" else "mute"
+                if (
+                    set(params) != {"processID", field}
+                    or type(params["processID"]) is not int
+                    or params["processID"] != 0
+                ):
+                    raise BridgeError("invalid_params")
+                result = await self.backend.set_system(**{field: params[field]})
             else:
                 raise BridgeError("unsupported_router_method")
             self.requests += 1
@@ -131,6 +151,21 @@ class Router:
                 "id": request_id,
                 "error": {"code": -32000, "message": code},
             }
+
+    def followup_events(self) -> list[dict]:
+        if not self.sync_system:
+            return []
+        self.sync_system = False
+        # The original client rekeys System from a string to numeric zero when
+        # the first application is inserted. Its image request proves that step
+        # completed; resynchronize the default state after that observed boundary.
+        return [
+            {
+                "jsonrpc": "2.0",
+                "method": "systemDefaultDeviceChanged",
+                "params": {"processID": 0, **self.backend.system},
+            }
+        ]
 
     def notifications(self, previous: dict[str, dict]) -> tuple[list[dict], dict[str, dict]]:
         current = {a["id"]: self.describe(a) for a in self.apps()}

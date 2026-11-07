@@ -48,10 +48,13 @@ and a matching `allowed_apps` entry if that list is nonempty. Empty means all
 applications. The default is audio disabled and writes disabled.
 
 The list result has `version: 1`, `backend`, `revision`, `applications`, `system`
-(read-only default-output volume/mute), and `write_enabled`. Each application
+(default-output volume/mute), `write_enabled` and `system_write_enabled`. Each application
 has `id`, `name`, `executable`, `volume`, `mute`, `mixed_mute`, `controllable` and
 member `sessions`. Session fields include stable ID, current node/serial/Pulse
 handle, application key, reported PID/Flatpak metadata, channel scalars and mute.
+Named icon hints and event-only metadata are additive fields. Global output
+control is currently consumed only by the versioned plugin service, through
+its separate opt-in gate; no generic host IPC system action is advertised.
 These metadata are returned to the requesting same-user client, not logged.
 Successful writes return `status: applied` and `stream_count`; this means the
 targeted commands completed and the graph was refreshed, not physical audibility.

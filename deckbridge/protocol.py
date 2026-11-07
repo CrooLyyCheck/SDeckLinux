@@ -51,6 +51,9 @@ WIRE_ERRORS = frozenset(
         "audio_stream_read_only",
         "audio_partial_action",
         "audio_action_failed",
+        "global_audio_control_disabled",
+        "audio_default_output_missing",
+        "audio_default_output_changed",
     }
 )
 

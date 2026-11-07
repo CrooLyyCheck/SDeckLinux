@@ -2,8 +2,9 @@
 
 An incremental Linux compatibility layer for the **original Elgato Stream Deck
 Windows application and unmodified plugins under Wine**. This first slice adds a
-user daemon, diagnostics, a reversible `streamdeck://` handler and explicit native
-launch mappings. It does not yet implement Wayland input or Windows Core Audio.
+user daemon, diagnostics, a reversible `streamdeck://` handler, explicit native
+launch mappings and a PipeWire backend for the original **Volume Controller
+2.0.5.201**. Wayland input and a generic Windows Core Audio shim are not implemented.
 
 The existing installation is a separate sibling project, `../streamdeck-linux`.
 DeckBridge integrates alongside its installed launcher, without reinstalling
@@ -12,9 +13,11 @@ Elgato or changing its Wine fixes. See [observed status](docs/STATUS.md),
 
 ## Local verification
 
-Python >= 3.11 is the only runtime dependency. Fedora desktop tools are needed
-for host integration. The development environment pins Ruff's Linux x86_64 wheel
-and SHA256; it does not install packages globally.
+Runtime uses Python >= 3.11 and, for the optional Volume Controller adapter,
+`websockets` 17.4. `make setup` verifies the pinned pure-Python wheel and prepares
+an isolated runtime dependency tree. Ruff is also hash pinned. No packages are
+installed globally. Host audio requires `pw-dump`, `pactl` and PipeWire-Pulse;
+desktop integration uses the existing Fedora user tools.
 
 ```bash
 make setup
@@ -83,10 +86,57 @@ select it through the original application's UI. No existing profile or
 `notepad.exe` association is changed by installation. This recipe is tested at
 the Wine/host command boundary; physical-button acceptance is tracked separately.
 
+## Volume Controller
+
+See the [versioned compatibility notes](docs/compat/plugins/volume-controller.md).
+The original plugin and its dynamic profile remain unchanged. The adapter serves
+its observed Audio Router protocol and lists native Linux applications, including
+Flatpak streams. Configuration is opt-in; add these tables to the existing
+private TOML file, then restart DeckBridge:
+
+```toml
+[audio]
+enabled = true
+allow_write = false
+allowed_apps = ["app:io.deckbridge.audio-test"]
+
+[compat.volume_controller]
+enabled = true
+```
+
+`allow_write = false` allows discovery only. With writes enabled, `allowed_apps`
+restricts control to the listed application keys; an empty list allows all listed
+applications. Use `deckbridge audio list` to find actual keys. The audited
+workstation now has writes enabled for normal application use following explicit
+user authorization. The bridge rejects system/device volume writes.
+
+```bash
+deckbridge audio list
+# Only after authorizing a target; CLI percentages are 0..100:
+deckbridge audio set-volume app:io.deckbridge.audio-test 25
+deckbridge audio set-mute app:io.deckbridge.audio-test true
+```
+
+Direct PipeWire streams without a PipeWire-Pulse control handle are visible but
+read-only. App icons use the original plugin's fallback. Automatic MK.2 profile
+discovery and one physical 100% → 95% adjustment passed on an isolated native
+test stream. Other apps were discovered without automated volume changes.
+
+Compatibility code is organized by responsibility:
+
+```text
+deckbridge/compat/sdeck/oauth/                # Stream Deck URL/OAuth transport
+deckbridge/compat/plugins/volume_controller/ # Versioned plugin protocol/peer checks
+deckbridge/backends/audio/                   # Reusable Linux audio model/backend
+```
+
 ## Disable or remove integration
 
 Disable just callback forwarding with `deep_links = false` in `[features]`, then
 restart the service. Removing a native mapping disables that target.
+Set `[compat.volume_controller] enabled = false` to disable just the plugin
+adapter, `[audio] allow_write = false` for read-only audio, or `[audio] enabled =
+false` with the adapter disabled to stop audio integration entirely.
 
 For full reversible deactivation:
 

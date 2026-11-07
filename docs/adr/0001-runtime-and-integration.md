@@ -2,6 +2,10 @@
 
 Status: accepted for the first functional slice, 2026-11-07.
 
+Amendment: [ADR 0002](0002-volume-controller-service-adapter.md) adds one optional,
+hash-pinned pure-Python WebSocket dependency for the observed plugin service.
+The OAuth/native-launch core continues to use the standard library.
+
 Problem: the selected DeckBridge checkout has an empty Git repository, while a
 working Bash/Python installer and its untracked user changes live in the sibling
 `streamdeck-linux` directory. The installed copy also differs from that checkout.

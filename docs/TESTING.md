@@ -7,6 +7,9 @@ format/lint, Python byte compilation and unittest discovery. Tests use temporary
 configuration/installer trees, real local Unix sockets and a deliberately hung
 Python helper that must be killed and reaped at the test deadline. They do not
 start Wine, touch the real prefix, press buttons, inject input or alter audio.
+Audio tests cover grouping, stale identities, write policies, scalar units,
+events, fixture ownership and real ephemeral WebSocket framing. Transport tests
+mock process identity; separate real-process acceptance is recorded in STATUS.
 
 Provider mocks verify the Wine argv/allowlist contract only. They are not evidence
 of Wine, Wayland or physical hardware functionality.
@@ -94,6 +97,67 @@ interactive test; it is not exercised by the default suite.
 
 Hardware display/button checks and user-reported results must be identified as
 such in STATUS. Never infer them from USB detection or a zero exit status.
+
+## Explicit audio fixture and Volume Controller acceptance
+
+`deckbridge audio list` is read-only. Do not run volume/mute commands against
+ordinary application keys as an incidental check. Keep writes disabled or
+restricted to `app:io.deckbridge.audio-test` while preparing a test; enabling
+normal use does not authorize automated real-app volume tests.
+
+After explicit authorization, enable audio/the adapter using the README tables
+and allow writes only to that fixture key. Start the bounded silent fixture in
+a separate terminal, or an independent transient user unit:
+
+```bash
+systemd-run --user --collect --quiet --service-type=exec \
+  --unit=deckbridge-audio-fixture --property=RuntimeMaxSec=1800 \
+  "$PWD/.venv/bin/python" "$PWD/tools/audio_smoke.py" hold-fixture --duration 1800
+```
+
+This creates an owned low-priority hidden null sink, checks that default devices
+did not change, then feeds zero samples through an explicitly targeted `pacat`
+stream. It never changes a sink volume or the default device. Graph links must
+stay within the fixture and its null sink before a volume test; unexpected links
+cause a failure before mutation. Starting a stream with no sink was observed to
+time out, so an unlinked pacat is not a valid long-lived fixture.
+
+Read the unit status and `deckbridge audio list`; wait past the earlier timeout
+and confirm the original plugin is connected/enumerated in `deckbridge diagnose`.
+Only then tell the user **test ready now**, with one exact button and target.
+The plugin dynamically builds columns in **Volume Controller (Auto)**. Do not
+edit active profile JSON or instruct the user to create a fixed test column.
+
+With separate consent for the fixture-only 25% → mute → restore sequence:
+
+```bash
+.venv/bin/python tools/audio_smoke.py exercise --approved
+```
+
+The flag is a deliberate execution guard, not a substitute for consent. The
+helper verifies the exact fixture, observes volume/mute, restores its original
+values and compares surviving streams, sinks and default devices around that
+exercise. It preserves earlier successful evidence if a later run stops before
+mutation. Record physical-button evidence separately: snapshot the fixture and
+other audio state immediately before the prompt, let the user press one short
+Volume Down and inspect actual Pulse/PipeWire values. Scalars on the vendor
+protocol are 0..1: a five-point step at 1.0 must yield approximately 0.95, not
+0.0095. Do not automatically repeat or infer mute/other-model acceptance.
+
+Stop and remove only the owned scaffolding when finished:
+
+```bash
+systemctl --user stop deckbridge-audio-fixture
+```
+
+The helper terminates/reaps its child, removes its unchanged private descriptor
+and unloads only the module still associated with its unique sink and server
+cookie. User-changed ownership blocks removal. The null sink/stream disappear
+from the dynamic profile; they are not persistent product configuration.
+
+The recorded workstation test authorized fixture mutations, then separately
+authorized normal button-driven app control. Preserve that distinction in future
+sessions. No automated real-app or global-volume tests were performed.
 
 ## Rollback regression
 

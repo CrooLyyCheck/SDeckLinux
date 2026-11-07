@@ -1,15 +1,20 @@
-# Status — 2026-11-07, Europe/Warsaw
+# Status — 2026-11-08, Europe/Warsaw
 
 ## Delivered scope
 
-First functional slice implemented and installed: a same-user capability daemon,
-diagnostic CLI, reversible desktop `streamdeck://` ingress and explicit native
-launch providers. Stage 2 is **partial**, with real application URI receipt and
-native ELF execution proven. **Marketplace OAuth passed a real fresh flow after
-repairing the stale portal handler.** Elgato logged linking success and installed
-the original Volume Controller plugin. New bridge-backed physical actions and
-Linux audio integration are not yet accepted. No Wayland input or Core Audio
-translation is claimed.
+Installed: same-user capability daemon, diagnostic CLI, reversible desktop
+`streamdeck://` ingress, explicit native launch providers and a reusable PipeWire
+application-audio backend. Marketplace OAuth passed a real flow. The unchanged
+**Volume Controller 2.0.5.201** now connects to its versioned Audio Router adapter,
+lists native/Flatpak apps and controls a real native stream from the MK.2 dynamic
+Auto profile. After the fixture test, the user separately authorized normal
+control of other applications; that configuration is active. No automated volume
+changes were made to those apps. Global bridge writes remain blocked.
+
+Acceptance is bounded: CLI volume/mute/restore and physical 100% → 95% passed on
+the isolated native fixture. Hardware mute, manual actions, dials and other device
+models remain untested. New bridge-native GUI actions and Wayland input remain
+separate roadmap gates. No generic Windows Core Audio translation is claimed.
 
 ## Audited baseline
 
@@ -50,7 +55,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 
 | Check | Result and limit |
 | --- | --- |
-| `make check` | 37 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
+| `make check` | 64 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
 | IPC | Real AF_UNIX request/response, reconnect, malformed/oversized/partial frames, frame deadline, private path/lock/symlink protections |
 | Helper deadline | A real hung Python child is killed and reaped; no indefinite launcher wait |
 | Installer tests | Temporary filesystem: dry-run unchanged, repeated install/deactivate, prior MIME restoration, unrelated/user-modified files preserved |
@@ -63,8 +68,8 @@ private snapshot covers the old host launcher/desktop/installed installer.
 | Native launch | Actual `/usr/bin/python3.14` ELF execution receipt through CLI and `wine start /unix ... deckbridge launch`; same Stream Deck instance remained |
 | Native GUI/URL | New bridge-backed physical GUI action and browser launch untested; mappings restored to empty after headless fixture |
 | HID | `tools/smoke.py inspect-hardware`: USB identity ioctl passed; rw ACL confirmed; zero input/output reports read/written |
-| Physical buttons/display | Interactive user test pending; device connection alone is not acceptance |
-| Profile regression | All 64 backed-up profile/resource files present and SHA256-identical after host tests; old launcher/desktop/installed installer identical |
+| Physical buttons/display | User observed dynamic Volume Controller Auto profile/test column and pressed Volume Down; measured native fixture changed 100% → 95.00%; other actions remain untested |
+| Profile regression | All 64 baseline files remain present; after interactive profile use 62 are SHA256-identical and two JSON manifests differ at `Pages.Current` / `Controllers`. No bridge-side profile edits or restoration; backups retained. Earlier pre-audio rollback check had all 64 identical |
 | Wine fixes | Existing static audit passed RPM SHA256 checks and required implementation clues for user32, dnsapi, winebus, hidclass |
 | Real-host deactivation | Actual stop/remove/restore/reinstall passed including portal-choice restoration after OAuth completion: previous handler/counters and opaque portal data restored, MIME restored, application PID/profiles/private config preserved; bridge reactivated and runtime matches checkout |
 
@@ -75,75 +80,95 @@ Local safe test evidence is under `$XDG_STATE_HOME/deckbridge/diagnostics`;
 Wine static audit disassembly is local there too. No logs, identifiers or callback
 data are committed.
 
+## Volume Controller and audio evidence
+
+| Check | Observed result |
+| --- | --- |
+| Version/API audit | Exact SDK metadata: `com.elgato.volume-controller` 2.0.5.201; readable JS uses Audio Router JSON-RPC at loopback port 1844. Device NAPI addon enumerated Wine devices. No vendor files modified or protected manifest decoded |
+| Native discovery | Real PipeWire 1.6.10 graph: Helium (multiple streams), Flatpak Fluxer Canary (namespaced PID) and temporary native test app; stable server-cookie/serial IDs and application grouping |
+| Original client | Exact-prefix Windows Node process authenticated and connected; enumerated apps and responded to real add/remove notifications; currently connected after final deployment |
+| Authorized CLI write | On DeckBridge Test only: 25% observed, mute observed, original volume/mute restored; immediate CLI window preserved other streams, sinks and default devices |
+| Physical integration | User confirmed dynamic test column/up/down. Initial scalar-unit bug was corrected and regression-tested. Fresh single Volume Down changed 1.0 to 0.9499969482421875, within one Pulse unit of 95% |
+| Isolation/cleanup | Unlinked pacat timed out, correctly explaining the disappearing column. Replaced with zero samples into an owned low-priority null sink. Fixture process, descriptor and module removed after acceptance |
+| Security | Real unrelated native WebSocket client rejected HTTP 403; temporary transport tests also cover browser Origin rejection, disabled writes and backend-failure disconnect |
+| Default suite | 64 tests: model/channel balance, stale IDs/server epoch, write allowlists, scalar contract/events, transport/process attribution, recursive install/obsolete-file preservation, bounded oversized replies and prior regressions |
+| Regression | Synthetic encoded/Unicode deep-link reached the same original instance after module reorganization; pinned vendor hashes still match; original app was not restarted for audio integration |
+| Normal use | User explicitly approved broadening fixture-only writes to other application streams. Live `[audio]` enabled/write true, empty allowed_apps; private pre-change config backup retained |
+
+The physical evidence's longer comparison window also observed a default sink
+volume change from 64% to 69%; the source was not attributed. Do not claim global
+volume stayed constant across the entire interactive session. The immediate CLI
+test did preserve sink state. The adapter has no global mutation path and no
+attempt was made to restore desktop changes. A later external link to the test
+sink monitor made the strict fixture-isolation check stop another test before
+mutation. The helper was corrected to compare sink state around each exercise,
+rather than treating the fixture's entire lifetime as an exclusive test window.
+Its old running instance needed an explicitly ownership-checked module cleanup;
+the cleanup helper now handles pactl module JSON without assuming an index field.
+
+Local evidence is private under `$XDG_STATE_HOME/deckbridge/diagnostics`, including
+`audio-write-smoke.json` and `volume-controller-hardware-smoke.json`. These contain
+observations/booleans, not exported vendor logs or OAuth payloads. A failed later
+smoke attempt does not overwrite the earlier successful evidence. Code layout
+and exact contract/limits are in [the plugin notes](compat/plugins/volume-controller.md)
+and [ADR 0002](adr/0002-volume-controller-service-adapter.md).
+
 ## Plugin inventory
 
 - `com.elgato.tutorial`, `1.0.4.3`, HTML entrypoint `app.html`: **untested** functionally.
-- Stream Deck Icon Library `2.2.0.175`: no plugin UUID or code entrypoint; asset bundle,
-  not evidence of executable plugin compatibility.
-- Original Elgato Volume Controller is now installed at
-  `Plugins/com.elgato.volume-controller.sdPlugin`. Elgato started it at 23:11:30
-  and its SDK session connected at 23:11:31. User screenshot confirms installation.
-  Functional compatibility state: **untested** for Linux audio discovery/control.
-  The installed 25,760-byte `manifest.json` is not plain UTF-8 JSON; exact plugin
-  version and entrypoint remain unconfirmed. Do not guess an encoding, decode
-  protected packaging, infer a private protocol or equate startup with support.
+- Stream Deck Icon Library `2.2.0.175`: an asset bundle, not executable-plugin acceptance.
+- `com.elgato.volume-controller`, `2.0.5.201`: **plugin-adapter**, automatic MK.2
+  discovery and fixture volume control accepted; other boundaries listed above.
 
-The manifest scanner and versioned compatibility database are not implemented yet.
+A generic manifest scanner is still absent. The installed Volume Controller
+manifest is not plain JSON, and only observed public runtime metadata/readable
+client behavior was used. The version/hash contract is deliberately narrow.
 
-## Open limits and next smallest step
+## Current deployment and next smallest step
 
-Previous real OAuth attempts failed despite browser approval. The missing
-boundary was the portal's remembered old handler. After the scoped repair, a
-fresh attempt completed OAuth and the gated Volume Controller installation.
-See diagnostics/OAUTH-2026-11-07.md for the reproduction, fix and successful flow.
+Runtime is installed separately from the checkout and matches its Python/JSON
+modules. The installer now copies nested modules/contracts, includes the pinned
+portable WebSocket dependency and preflights modified obsolete files before any
+managed write. New optional audio configuration is backward-compatible with v1.
 
-The latest runtime, including final response/path validation, request metadata and
-portal diagnostics, is installed and matches the checkout. The successful fresh
-attempt ran after the bounded live observer had finished, so acceptance uses
-the application's persistent log metadata plus the user's installation result;
-no short observer window is a prerequisite for future human login tests.
-The **Linux OK** physical key result remains unknown; do not infer it from OAuth.
+Folder ownership:
 
-All 64 baseline profile/resource files remain present and SHA256-identical after
-plugin installation. One exact-prefix instance is active (PID 58761 during the
-successful attempt, different from initial baseline PID 49044). Do not claim
-uninterrupted identity across separate user attempts; the final rollback test
-preserved the current instance. No Stream Deck restart was issued by DeckBridge
-during the successful flow.
+- `deckbridge/compat/sdeck/oauth/`: original callback/portal/forwarding logic.
+- `deckbridge/compat/plugins/volume_controller/`: observed plugin contract and adapter.
+- `deckbridge/backends/audio/`: reusable Linux model and PipeWire/Pulse control.
+- `tools/audio_smoke.py`, `tests/test_audio.py`, `tests/test_volume_*.py`: explicit
+  host fixture and hardware-free contract/transport regression coverage.
 
-The next safe step is read-only inspection of the newly installed Volume
-Controller's documented metadata and real audio API boundary, followed by an
-independent PipeWire CLI backend. New physical native-action and Wayland input
-acceptance remain separate gates. For any future OAuth regression, collect only
-fixed-code/boolean observations, never real callback query values. Elgato's
-own private application log can contain URIs; its logger is outside this bridge's
-control and must not be exported without redaction.
+One exact-prefix original instance remains active (PID 58761 in this session),
+with the original Volume Controller Node client connected. Do not infer physical
+Linux OK/native-GUI acceptance from the Volume Controller test. OAuth was not
+repeated; its previous acceptance and a fresh synthetic transport regression are
+separate evidence. For future OAuth regressions, collect only fixed-code/boolean
+observations; the application's own private logs can contain real callback data.
 
-The workstation's inotify user-instance limit is exhausted (`EMFILE`, limit 128,
-only five process FDs in the diagnostic process). No sysctl/security changes were
-made. The synthetic log observer uses documented bounded 100 ms sampling, not
-callback retries. Keyboard and volume mutation tests have not been authorized or
-run. Native action mapping tests were headless and their configuration was restored.
+The next small acceptance step is user-driven normal app control and mute, then
+manual-detection actions if needed. No additional automatic real-app mutation is
+authorized by the fixture test. Native-only PipeWire stream control, app icons,
+generic Core Audio and Wayland input are not implemented. Host IPC snapshots over
+16 KiB fail explicitly; there is no pagination. External Pulse control has a
+small non-atomic identity-check/use window; there are no side-effect retries.
 
-Implemented file groups: `deckbridge/` runtime/CLI, `tools/install.py`,
-`tools/smoke.py`, `tools/native_probe.py`, `tests/`, local build configuration and
-the architecture/protocol/ADR/roadmap/testing documents. Runtime installation is
-separate from the checkout; after source changes, rerun the explicit installer
-outside an ongoing OAuth flow.
+The previously observed inotify instance exhaustion was not repaired with global
+sysctl changes. Synthetic receipt tests use bounded 100 ms log sampling. No root,
+new DLL overrides, global Wine/KDE/security changes or external CI were added.
 
-Local branch: `codex/initial-bridge`. Runtime, installer and tests are committed
-as `e817e51` (`feat: add bounded DeckBridge daemon and reversible Wine URL integration`).
-Commits use the authenticated GitHub account's verified public noreply identity
-through command-local Git options because no author identity was configured.
-No global Git configuration was changed and no push/PR was performed.
+Local branch: `codex/initial-bridge`. Work is committed locally in thematic
+changes after checks; no remote, push or PR. Command-local verified public noreply
+Git identity is used; no global Git configuration is changed.
 
 Resume commands:
 
 ```bash
 make check
 deckbridge diagnose
-python3 tools/smoke.py inspect-hardware
+deckbridge audio list
 ```
 
-For real callback observations and rollback commands, follow TESTING.md. Do not
-mark the entire project complete while later roadmap acceptance gates remain.
+After source changes, apply the explicit installer outside an active OAuth flow.
+Audio safety/disable options and opt-in test commands are in TESTING.md. Do not
+mark all roadmap stages complete based on this plugin slice.

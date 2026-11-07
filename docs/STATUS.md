@@ -5,10 +5,11 @@
 First functional slice implemented and installed: a same-user capability daemon,
 diagnostic CLI, reversible desktop `streamdeck://` ingress and explicit native
 launch providers. Stage 2 is **partial**, with real application URI receipt and
-native ELF execution proven. The user completed real OAuth tests and reported
-failure. A stale portal handler was identified and repaired; fresh full-flow
-acceptance is now pending. New bridge-backed physical actions are not yet
-accepted. No Wayland input or Core Audio translation is claimed.
+native ELF execution proven. **Marketplace OAuth passed a real fresh flow after
+repairing the stale portal handler.** Elgato logged linking success and installed
+the original Volume Controller plugin. New bridge-backed physical actions and
+Linux audio integration are not yet accepted. No Wayland input or Core Audio
+translation is claimed.
 
 ## Audited baseline
 
@@ -57,7 +58,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 | Initial URI fault | No Linux handler (`xdg-mime` empty, `gio mime` no handler), despite correct prefix registry command `StreamDeck.exe "%1"` |
 | KDE transport fault | `%u` decoded spaces and UTF-8; isolated synthetic custom-scheme probe reproduced it, then was completely removed |
 | Actual deep-link | `tools/smoke.py deep-link ...` passed: fresh Elgato `openFile` receipt in the same running instance, `%26/%2F/%25/%2B`, query, fragment and `zażółć` observed |
-| Real OAuth | User performed browser approval and reported failure; only `open/mainwindow` reached Elgato. Portal remembered `streamdeck-wine` despite correct MIME default; scoped repair deployed |
+| Real OAuth | Passed after portal repair: login began 23:11:15, real `marketplace/auth` with code/state arrived 23:11:28, `onLinkingSucceeded` at 23:11:29, Marketplace continued installation; user supplied successful plugin-installation screenshot |
 | Portal/authentication consumer | Actual OpenURI portal delivered synthetic `marketplace/auth?code=...&state=...` into Elgato's OAuth handler, which rejected the synthetic state as expected; same original instance, no legacy launcher invocation |
 | Native launch | Actual `/usr/bin/python3.14` ELF execution receipt through CLI and `wine start /unix ... deckbridge launch`; same Stream Deck instance remained |
 | Native GUI/URL | New bridge-backed physical GUI action and browser launch untested; mappings restored to empty after headless fixture |
@@ -65,39 +66,56 @@ private snapshot covers the old host launcher/desktop/installed installer.
 | Physical buttons/display | Interactive user test pending; device connection alone is not acceptance |
 | Profile regression | All 64 backed-up profile/resource files present and SHA256-identical after host tests; old launcher/desktop/installed installer identical |
 | Wine fixes | Existing static audit passed RPM SHA256 checks and required implementation clues for user32, dnsapi, winebus, hidclass |
-| Real-host deactivation | Actual stop/remove/restore/reinstall passed before portal repair; original PID, profiles and private config preserved, prior empty MIME default restored. Added portal-choice restoration is covered by unit tests; live rollback of that new preference is pending outside a login flow |
+| Real-host deactivation | Actual stop/remove/restore/reinstall passed including portal-choice restoration after OAuth completion: previous handler/counters and opaque portal data restored, MIME restored, application PID/profiles/private config preserved; bridge reactivated and runtime matches checkout |
 
 Local safe test evidence is under `$XDG_STATE_HOME/deckbridge/diagnostics`;
-`native-smoke.json` records observed native executable identity. Wine static audit
-disassembly is local there too. No logs, identifiers or callback data are committed.
+`native-smoke.json` records observed native executable identity;
+`oauth-success.json` records timestamps and success booleans;
+`portal-rollback-smoke.json` records actual scoped restoration/reactivation.
+Wine static audit disassembly is local there too. No logs, identifiers or callback
+data are committed.
 
 ## Plugin inventory
 
 - `com.elgato.tutorial`, `1.0.4.3`, HTML entrypoint `app.html`: **untested** functionally.
 - Stream Deck Icon Library `2.2.0.175`: no plugin UUID or code entrypoint; asset bundle,
   not evidence of executable plugin compatibility.
-- Original Elgato Volume Controller is not installed in the audited plugin directory;
-  no private protocol, process model or Core Audio dependency is inferred.
+- Original Elgato Volume Controller is now installed at
+  `Plugins/com.elgato.volume-controller.sdPlugin`. Elgato started it at 23:11:30
+  and its SDK session connected at 23:11:31. User screenshot confirms installation.
+  Functional compatibility state: **untested** for Linux audio discovery/control.
+  The installed 25,760-byte `manifest.json` is not plain UTF-8 JSON; exact plugin
+  version and entrypoint remain unconfirmed. Do not guess an encoding, decode
+  protected packaging, infer a private protocol or equate startup with support.
 
 The manifest scanner and versioned compatibility database are not implemented yet.
 
 ## Open limits and next smallest step
 
-The user confirmed that OAuth was tested and failed, then supplied a screenshot
-and confirmation of approving browser dispatch. The missing boundary was the
-portal's remembered old handler. See diagnostics/OAUTH-2026-11-07.md for the
-reproduction, fix and privacy-preserving evidence.
+Previous real OAuth attempts failed despite browser approval. The missing
+boundary was the portal's remembered old handler. After the scoped repair, a
+fresh attempt completed OAuth and the gated Volume Controller installation.
+See diagnostics/OAUTH-2026-11-07.md for the reproduction, fix and successful flow.
 
 The latest runtime, including final response/path validation, request metadata and
-portal diagnostics, is installed and matches the checkout. A clear **test now**
-signal was given after the portal repair and a bounded payload-free observer was
-started. Leave the service unchanged during the user's fresh login attempt.
-Collect its actual account-linking result. The **Linux OK** physical key result
-remains unknown; do not infer it from the OAuth discussion.
+portal diagnostics, is installed and matches the checkout. The successful fresh
+attempt ran after the bounded live observer had finished, so acceptance uses
+the application's persistent log metadata plus the user's installation result;
+no short observer window is a prerequisite for future human login tests.
+The **Linux OK** physical key result remains unknown; do not infer it from OAuth.
 
-If the fresh login still fails, locate whether the native browser invokes the
-new handler, whether the daemon forwards it, and whether Elgato continues the flow. Collect
-only fixed-code/boolean observations, never real callback query values. Elgato's
+All 64 baseline profile/resource files remain present and SHA256-identical after
+plugin installation. One exact-prefix instance is active (PID 58761 during the
+successful attempt, different from initial baseline PID 49044). Do not claim
+uninterrupted identity across separate user attempts; the final rollback test
+preserved the current instance. No Stream Deck restart was issued by DeckBridge
+during the successful flow.
+
+The next safe step is read-only inspection of the newly installed Volume
+Controller's documented metadata and real audio API boundary, followed by an
+independent PipeWire CLI backend. New physical native-action and Wayland input
+acceptance remain separate gates. For any future OAuth regression, collect only
+fixed-code/boolean observations, never real callback query values. Elgato's
 own private application log can contain URIs; its logger is outside this bridge's
 control and must not be exported without redaction.
 

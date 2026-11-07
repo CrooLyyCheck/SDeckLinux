@@ -14,6 +14,8 @@ The example's capabilities array is abbreviated; the real response describes
 the three concrete providers and their enabled state. `id` is 1–64 ASCII letters,
 digits or hyphens. It is echoed to the client but never used as a log correlation
 ID. The server generates a separate random correlation ID.
+Logs include only validated method/capability names. Diagnostics include a safe
+summary of the remembered portal handler separately from the MIME default.
 
 | Method | Params | Meaning |
 | --- | --- | --- |

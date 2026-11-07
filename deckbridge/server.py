@@ -22,7 +22,9 @@ from .providers import capabilities, execute
 MAX_CLIENTS = 16
 
 
-def log(event: str, correlation: str = "", code: str = "") -> None:
+def log(
+    event: str, correlation: str = "", code: str = "", *, operation: str = "", capability: str = ""
+) -> None:
     print(
         json.dumps(
             {
@@ -30,6 +32,8 @@ def log(event: str, correlation: str = "", code: str = "") -> None:
                 "event": event,
                 "correlation": correlation,
                 "code": code,
+                "operation": operation,
+                "capability": capability,
             }
         ),
         file=sys.stderr,
@@ -57,6 +61,7 @@ class Server:
             return
         self.clients.add(task)
         correlation, request_id = uuid.uuid4().hex, None
+        metadata = {"operation": "", "capability": ""}
         try:
             peer = writer.get_extra_info("socket").getsockopt(
                 socket.SOL_SOCKET, socket.SO_PEERCRED, 12
@@ -71,6 +76,14 @@ class Server:
                 raise BridgeError("invalid_frame") from None
             request = decode_request(raw)
             request_id = request.id
+            metadata["operation"] = request.method  # Validated against fixed method names.
+            candidate = request.params.get("capability")
+            if (
+                request.method == "actions.execute"
+                and isinstance(candidate, str)
+                and candidate in {"oauth.deepLink", "desktop.launch", "desktop.openUrl"}
+            ):
+                metadata["capability"] = candidate
             if request.method in {"capabilities.list", "diagnostics.get"}:
                 exact_keys(request.params, set())
             if request.method == "capabilities.list":
@@ -80,16 +93,16 @@ class Server:
             else:
                 result = await execute(self.config, request.params)
             reply = {"v": 1, "id": request_id, "result": result}
-            log("request_completed", correlation)
+            log("request_completed", correlation, **metadata)
         except BridgeError as exc:
             reply = {"v": 1, "id": request_id, "error": {"code": exc.code}}
-            log("request_failed", correlation, exc.code)
+            log("request_failed", correlation, exc.code, **metadata)
         except TimeoutError:
             reply = {"v": 1, "id": request_id, "error": {"code": "timeout_outcome_unknown"}}
-            log("request_failed", correlation, "timeout_outcome_unknown")
+            log("request_failed", correlation, "timeout_outcome_unknown", **metadata)
         except OSError:
             reply = {"v": 1, "id": request_id, "error": {"code": "backend_unavailable"}}
-            log("request_failed", correlation, "backend_unavailable")
+            log("request_failed", correlation, "backend_unavailable", **metadata)
         finally:
             # Cancellation during shutdown must close accepted sockets too.
             if sys.exc_info()[0] is not None:
@@ -100,7 +113,7 @@ class Server:
             async with asyncio.timeout(IO_TIMEOUT):
                 await writer.drain()
         except (ConnectionError, TimeoutError):
-            log("client_disconnected", correlation, "outcome_unknown")
+            log("client_disconnected", correlation, "outcome_unknown", **metadata)
         finally:
             writer.close()
             try:

@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from deckbridge.portal import HANDLER, LEGACY
 from tools.install import MIME, install
 
 
@@ -33,6 +34,11 @@ class InstallTests(unittest.TestCase):
         self.mime.write_text(self.original)
         self.launcher = self.home / ".local/bin/deckbridge"
         self.args = argparse.Namespace(prefix=self.prefix, apply=True, deactivate=False)
+        self.permissions = {}
+
+        def set_permission(app, values):
+            self.permissions[app] = values
+
         for mock in (
             patch("pathlib.Path.home", return_value=self.home),
             patch.dict(
@@ -44,6 +50,8 @@ class InstallTests(unittest.TestCase):
                 },
             ),
             patch("tools.install.run"),
+            patch("deckbridge.portal.read_permissions", side_effect=lambda: dict(self.permissions)),
+            patch("deckbridge.portal.set_permission", side_effect=set_permission),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             mock.__enter__()
@@ -95,3 +103,28 @@ class InstallTests(unittest.TestCase):
         self.args.deactivate = True
         install(self.args)
         self.assertIn("user-new-default.desktop", self.mime.read_text())
+
+    def test_remembered_legacy_portal_choice_restored_without_other_app_changes(self):
+        self.permissions.update({"": [LEGACY, "2", "3"], "other.app": ["user-editor", "9", "10"]})
+        original = dict(self.permissions)
+        install(self.args)
+        self.assertEqual(self.permissions[""], [HANDLER, "2", "3"])
+        self.assertEqual(self.permissions["other.app"], original["other.app"])
+        install(self.args)
+        self.args.deactivate = True
+        install(self.args)
+        self.assertEqual(self.permissions, original)
+
+    def test_user_changed_portal_choice_preserved_on_deactivation(self):
+        self.permissions[""] = [LEGACY, "2", "3"]
+        install(self.args)
+        self.permissions[""] = ["user-new-handler", "1", "3"]
+        self.args.deactivate = True
+        install(self.args)
+        self.assertEqual(self.permissions[""], ["user-new-handler", "1", "3"])
+
+    def test_portal_dry_run_preserves_preferences(self):
+        self.permissions[""] = [LEGACY, "2", "3"]
+        self.args.apply = False
+        install(self.args)
+        self.assertEqual(self.permissions[""], [LEGACY, "2", "3"])

@@ -29,6 +29,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.wine` | Match executable plus `WINEPREFIX`, hand off only with exactly one main process |
 | `deckbridge.providers` | Concrete `oauth.deepLink`, `desktop.launch`, `desktop.openUrl` dispatch |
 | `deckbridge.diagnostics` | Read-only component and HID visibility observations |
+| `deckbridge.portal` | Inspect remembered Stream Deck portal choices; installer-only scoped restoration |
 | `tools/install.py` | Hash-tracked user integration and scoped MIME restoration |
 | `tools/smoke.py` | Explicit real-host observations, excluded from `make check` |
 
@@ -60,11 +61,22 @@ native applications when DeckBridge stops. Environment expansion is disabled,
 descriptions are fixed, and their standard output/error are discarded.
 
 Logs contain fixed events/codes and server-generated correlation IDs, never URI
-payloads or subprocess output. Core dumps are disabled for the installed service.
+payloads or subprocess output. Validated method/capability names distinguish
+diagnostics from real forwarding attempts. Core dumps are disabled for the installed service.
 The original application may write received URLs into its own private logs;
 DeckBridge does not control that logger. Do not collect those logs around real
 OAuth flows without redaction. URI argv is also visible to same-user process
 inspection, as with ordinary desktop protocol handlers.
+
+The OpenURI portal has a separate remembered-application store. A correct MIME
+default alone does not prove correct browser dispatch: the audited portal still
+selected `streamdeck-wine`, whose desktop entry has no URL field code. Installation
+replaces only remembered choices targeting that legacy launcher, using
+`PermissionStore.SetPermission` for the `desktop-used-apps` /
+`x-scheme-handler/streamdeck` entry. Previous per-caller values are saved before
+mutation. Other callers' choices, use counters, thresholds, the opaque data
+variant (including always-ask) and browser consent are retained. Deactivation
+restores only choices still pointing to DeckBridge, preserving user changes.
 
 No callbacks are automatically retried or queued. A disconnect/timeout can mean
 the action already happened. Clients reconnect for a new explicit request; users
@@ -103,3 +115,5 @@ There is no automatic telemetry upload.
 - [Desktop Entry Exec field codes](https://specifications.freedesktop.org/desktop-entry/latest-single/).
 - [systemd-run exec semantics](https://freedesktop.org/software/systemd/man/latest/systemd-run.html).
 - [Linux hidraw identity ioctl](https://www.kernel.org/doc/html/latest/hid/hidraw.html).
+- [Portal remembered-application store](https://github.com/flatpak/xdg-desktop-portal/wiki/The-Permission-Store).
+- [Installed portal version's selection logic](https://github.com/flatpak/xdg-desktop-portal/blob/1.22.1/src/open-uri.c).

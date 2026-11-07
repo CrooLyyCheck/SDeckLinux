@@ -8,7 +8,8 @@ from pathlib import Path
 
 from . import __version__
 from .config import Config
-from .protocol import IO_TIMEOUT
+from .portal import read_permissions, summary
+from .protocol import IO_TIMEOUT, BridgeError
 from .wine import running_instances
 
 
@@ -56,6 +57,10 @@ async def mime_handler() -> str:
 
 
 async def diagnose(config: Config) -> dict:
+    try:
+        portal = summary(await asyncio.to_thread(read_permissions))
+    except BridgeError as error:
+        portal = {"error": error.code}
     return {
         "deckbridge_version": __version__,
         "protocol_version": 1,
@@ -65,6 +70,7 @@ async def diagnose(config: Config) -> dict:
         "running_instances": len(await asyncio.to_thread(running_instances, config)),
         "deep_links_enabled": config.deep_links,
         "streamdeck_handler": await mime_handler(),
+        "portal_streamdeck": portal,
         "hardware": await asyncio.to_thread(hardware),
         "desktop": "KDE" if os.environ.get("XDG_CURRENT_DESKTOP") == "KDE" else "other",
         "session": os.environ.get("XDG_SESSION_TYPE", "unknown"),

@@ -36,6 +36,9 @@ deckbridge capabilities
 The default is a dry-run. Applying creates user-owned runtime files, a private
 `$XDG_CONFIG_HOME/deckbridge/config.toml`, a `systemd --user` service, a hidden
 desktop entry and one MIME default key. Existing configuration is retained.
+Remembered portal choices pointing to the old `streamdeck-wine` launcher are
+updated for this scheme only, with their previous values saved in the private
+installation manifest. Counters, thresholds and browser consent are preserved.
 The previous MIME key and a private full-file backup are kept in
 `$XDG_STATE_HOME/deckbridge`. Unowned or modified managed files block updates.
 Updating restarts the daemon; do this outside an ongoing OAuth flow.
@@ -93,7 +96,8 @@ python3 tools/install.py --deactivate --apply
 ```
 
 This stops/disables the daemon, restores its MIME default key if still selected,
-and removes unchanged owned files. User-modified files, configuration, backups,
+restores owned portal choices, and removes unchanged owned files.
+User-modified files, configuration, backups,
 the Wine prefix and the original Elgato installation remain. A changed MIME
 default chosen by the user is preserved. The original `streamdeck-wine` launcher
 continues to work independently.

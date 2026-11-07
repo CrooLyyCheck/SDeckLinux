@@ -19,6 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DESKTOP = "io.deckbridge.UrlHandler.desktop"
 MIME = "x-scheme-handler/streamdeck"
+sys.path.insert(0, str(ROOT))
+
+from deckbridge import portal  # noqa: E402 - standalone repository tool
+from deckbridge.config import load  # noqa: E402
+from deckbridge.protocol import BridgeError  # noqa: E402
 
 
 def digest(data: bytes) -> str:
@@ -107,6 +112,8 @@ def install(args: argparse.Namespace) -> None:
     )
     if manifest.get("version") != 1:
         raise RuntimeError("Unknown installation manifest")
+    permissions = portal.read_permissions()
+    portal_changes = portal.legacy_choices(permissions)
     launcher = home / ".local/bin/deckbridge"
     runtime = data / "deckbridge/runtime"
     service = config / "systemd/user/deckbridge.service"
@@ -123,10 +130,21 @@ def install(args: argparse.Namespace) -> None:
             return
         if not manifest_path.exists():
             raise RuntimeError("No managed installation to deactivate")
-        if not manifest["files"] and "previous_mime_line" not in manifest:
+        if (
+            not manifest["files"]
+            and "previous_mime_line" not in manifest
+            and not manifest.get("portal_choices")
+        ):
             print("Already deactivated; private config and backups retained.")
             return
         run(["/usr/bin/systemctl", "--user", "disable", "--now", "deckbridge.service"])
+        for app, entry in manifest.get("portal_choices", {}).items():
+            current = permissions.get(app, [])
+            if current and current[0] == portal.HANDLER:
+                portal.set_permission(app, entry["previous"])
+            else:
+                print("Preserved user-changed portal application choice.")
+        manifest.pop("portal_choices", None)
         text = mime.read_text() if mime.exists() else ""
         line = default_line(text)
         if line is not None and line.strip() == MIME + "=" + DESKTOP + ";":
@@ -214,6 +232,10 @@ deep_links = true
         f"streamdeck:// -> {DESKTOP}."
     )
     print("Existing Wine prefix, installer, profiles and plugins are not modified.")
+    print(
+        f"Remembered legacy portal choices to update: {len(portal_changes)}; "
+        "counters/consent retained."
+    )
     if not args.apply:
         return
     for command in (
@@ -222,6 +244,7 @@ deep_links = true
         "/usr/bin/desktop-file-validate",
         "/usr/bin/update-desktop-database",
         "/usr/bin/systemd-analyze",
+        "/usr/bin/busctl",
     ):
         if not os.access(command, os.X_OK):
             raise RuntimeError("Missing required integration tool: " + command)
@@ -236,9 +259,6 @@ deep_links = true
         raise RuntimeError("Config symlink refused")
     if not config_path.exists():
         atomic(config_path, cfg.encode())
-    sys.path.insert(0, str(ROOT))
-    from deckbridge.config import load
-
     if load(config_path).prefix != prefix:
         raise RuntimeError("Existing config names a different prefix; preserving it")
     text = mime.read_text() if mime.exists() else ""
@@ -256,6 +276,15 @@ deep_links = true
     run(["/usr/bin/systemctl", "--user", "daemon-reload"])
     run(["/usr/bin/systemctl", "--user", "enable", "deckbridge.service"])
     run(["/usr/bin/systemctl", "--user", "restart", "deckbridge.service"])
+    for app, replacement in portal_changes.items():
+        if portal.read_permissions().get(app) != permissions[app]:
+            raise BridgeError("portal_choice_changed")
+        saved = manifest.setdefault("portal_choices", {})
+        if app in saved:
+            raise BridgeError("portal_choice_changed")  # User changed a previously managed choice.
+        saved[app] = {"previous": permissions[app], "installed": replacement}
+        atomic(manifest_path, json.dumps(manifest, indent=2).encode())
+        portal.set_permission(app, replacement)
     print(
         "Installed. Run: deckbridge diagnose. "
         "After config changes: systemctl --user restart deckbridge."
@@ -269,6 +298,6 @@ if __name__ == "__main__":
     parser.add_argument("--deactivate", action="store_true")
     try:
         install(parser.parse_args())
-    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError, BridgeError) as error:
         print(f"Installation stopped: {error}", file=sys.stderr)
         sys.exit(1)

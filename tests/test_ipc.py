@@ -56,6 +56,29 @@ class IPCTests(unittest.IsolatedAsyncioTestCase):
             result = await call(self.path, "capabilities.list", {})
             self.assertEqual(result["capabilities"][0]["name"], "oauth.deepLink")
             self.assertFalse(result["events"]["supported"])
+        self.assertIn('"operation": "capabilities.list"', self.logs.getvalue())
+
+    async def test_log_metadata_never_uses_unvalidated_payload_or_client_id(self):
+        sentinel = "SYNTHETICSECRET"
+        result = await self.exchange(
+            json.dumps(
+                {
+                    "v": 1,
+                    "id": sentinel,
+                    "method": "actions.execute",
+                    "params": {
+                        "capability": sentinel,
+                        "arguments": {"uri": "streamdeck://x?code=" + sentinel},
+                    },
+                }
+            ).encode()
+            + b"\n"
+        )
+        self.assertEqual(result["error"]["code"], "unsupported_capability")
+        logs = self.logs.getvalue()
+        self.assertNotIn(sentinel, logs)
+        self.assertIn('"operation": "actions.execute"', logs)
+        self.assertIn('"capability": ""', logs)
 
     async def test_invalid_payload_does_not_leak_or_crash(self):
         secret = "SYNTHETIC-OAUTH-SECRET"  # noqa: S105 - deliberate redaction-test sentinel

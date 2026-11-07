@@ -9,9 +9,10 @@
 | 4 — PipeWire/Volume Controller | Not implemented | Real per-stream CLI read/write/mute/events; original unmodified Volume Controller lists/controls Fedora apps, or exact missing boundary documented |
 | 5 — plugin compatibility | Audit only | Manifest scanner, UUID/version evidence registry, observed dependencies, per-version functional tests |
 
-Current smallest next step: collect the interactive Marketplace OAuth result and
-physical MK.2 action result, then reproduce any remaining failure at its actual
-boundary. See STATUS for evidence and outstanding tests. Do not start a Core Audio
+Current smallest next step: verify a fresh Marketplace OAuth attempt after the
+deployed portal-choice repair. Previous real attempts failed; their missing
+callback boundary is reproduced and documented. Then collect the physical MK.2
+action result. See STATUS for evidence and outstanding tests. Do not start a Core Audio
 shim before inspecting a real installed Volume Controller version and its imports/runtime.
 
 After stage 2 acceptance, implement one approved Wayland input scenario through

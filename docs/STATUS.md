@@ -5,8 +5,10 @@
 First functional slice implemented and installed: a same-user capability daemon,
 diagnostic CLI, reversible desktop `streamdeck://` ingress and explicit native
 launch providers. Stage 2 is **partial**, with real application URI receipt and
-native ELF execution proven. Full OAuth and new bridge-backed physical actions
-are not yet accepted. No Wayland input or Core Audio translation is claimed.
+native ELF execution proven. The user completed real OAuth tests and reported
+failure. A stale portal handler was identified and repaired; fresh full-flow
+acceptance is now pending. New bridge-backed physical actions are not yet
+accepted. No Wayland input or Core Audio translation is claimed.
 
 ## Audited baseline
 
@@ -47,7 +49,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 
 | Check | Result and limit |
 | --- | --- |
-| `make check` | 29 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
+| `make check` | 37 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
 | IPC | Real AF_UNIX request/response, reconnect, malformed/oversized/partial frames, frame deadline, private path/lock/symlink protections |
 | Helper deadline | A real hung Python child is killed and reaped; no indefinite launcher wait |
 | Installer tests | Temporary filesystem: dry-run unchanged, repeated install/deactivate, prior MIME restoration, unrelated/user-modified files preserved |
@@ -55,14 +57,15 @@ private snapshot covers the old host launcher/desktop/installed installer.
 | Initial URI fault | No Linux handler (`xdg-mime` empty, `gio mime` no handler), despite correct prefix registry command `StreamDeck.exe "%1"` |
 | KDE transport fault | `%u` decoded spaces and UTF-8; isolated synthetic custom-scheme probe reproduced it, then was completely removed |
 | Actual deep-link | `tools/smoke.py deep-link ...` passed: fresh Elgato `openFile` receipt in the same running instance, `%26/%2F/%25/%2B`, query, fragment and `zażółć` observed |
-| OAuth/plugin continuation | Untested; synthetic URI targets an absent diagnostic UUID; transport success does not prove this boundary |
+| Real OAuth | User performed browser approval and reported failure; only `open/mainwindow` reached Elgato. Portal remembered `streamdeck-wine` despite correct MIME default; scoped repair deployed |
+| Portal/authentication consumer | Actual OpenURI portal delivered synthetic `marketplace/auth?code=...&state=...` into Elgato's OAuth handler, which rejected the synthetic state as expected; same original instance, no legacy launcher invocation |
 | Native launch | Actual `/usr/bin/python3.14` ELF execution receipt through CLI and `wine start /unix ... deckbridge launch`; same Stream Deck instance remained |
 | Native GUI/URL | New bridge-backed physical GUI action and browser launch untested; mappings restored to empty after headless fixture |
 | HID | `tools/smoke.py inspect-hardware`: USB identity ioctl passed; rw ACL confirmed; zero input/output reports read/written |
 | Physical buttons/display | Interactive user test pending; device connection alone is not acceptance |
 | Profile regression | All 64 backed-up profile/resource files present and SHA256-identical after host tests; old launcher/desktop/installed installer identical |
 | Wine fixes | Existing static audit passed RPM SHA256 checks and required implementation clues for user32, dnsapi, winebus, hidclass |
-| Real-host deactivation | Dry-run inspected; scoped restoration of current real MIME data matches the original backup byte-for-byte; full stop/remove/restore postponed during the user's interactive OAuth test |
+| Real-host deactivation | Actual stop/remove/restore/reinstall passed before portal repair; original PID, profiles and private config preserved, prior empty MIME default restored. Added portal-choice restoration is covered by unit tests; live rollback of that new preference is pending outside a login flow |
 
 Local safe test evidence is under `$XDG_STATE_HOME/deckbridge/diagnostics`;
 `native-smoke.json` records observed native executable identity. Wine static audit
@@ -80,21 +83,20 @@ The manifest scanner and versioned compatibility database are not implemented ye
 
 ## Open limits and next smallest step
 
-The user has agreed to perform Marketplace OAuth and the pre-existing Wine Test
-**Linux OK** physical key check; awaiting their actual result. Keep the handler
-available until that flow finishes. Then test real-host deactivation/reinstall
-outside a callback flow and record the MIME/instance/profile observations.
+The user confirmed that OAuth was tested and failed, then supplied a screenshot
+and confirmation of approving browser dispatch. The missing boundary was the
+portal's remembered old handler. See diagnostics/OAUTH-2026-11-07.md for the
+reproduction, fix and privacy-preserving evidence.
 
-Final repository-only hardening (strict client response validation, case-sensitive
-Unix executable matching and server-only `serve --config`) has passed tests but
-is not yet reloaded into the installed runtime. Pending runtime files are
-`protocol.py`, `wine.py`, `client.py`, `__main__.py`. Apply the current checkout
-with the explicit-prefix installer after the interactive flow; it also refreshes
-the launcher's bytecode-cache setting. The active installed snapshot has already
-passed the real URI/native-process observations described above.
+The latest runtime, including final response/path validation, request metadata and
+portal diagnostics, is installed and matches the checkout. A clear **test now**
+signal was given after the portal repair and a bounded payload-free observer was
+started. Leave the service unchanged during the user's fresh login attempt.
+Collect its actual account-linking result. The **Linux OK** physical key result
+remains unknown; do not infer it from the OAuth discussion.
 
-If login still fails, locate whether the native browser invokes the handler,
-whether the daemon forwards it, and whether Elgato continues the flow. Collect
+If the fresh login still fails, locate whether the native browser invokes the
+new handler, whether the daemon forwards it, and whether Elgato continues the flow. Collect
 only fixed-code/boolean observations, never real callback query values. Elgato's
 own private application log can contain URIs; its logger is outside this bridge's
 control and must not be exported without redaction.

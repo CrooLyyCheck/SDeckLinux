@@ -5,14 +5,15 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from deckbridge.portal import HANDLER, LEGACY
-from tools.install import MIME, install
+from deckbridge.compat.sdeck.oauth.portal import HANDLER, LEGACY
+from tools.install import MIME, ROOT, digest, install
 
 
 class InstallTests(unittest.TestCase):
@@ -50,8 +51,13 @@ class InstallTests(unittest.TestCase):
                 },
             ),
             patch("tools.install.run"),
-            patch("deckbridge.portal.read_permissions", side_effect=lambda: dict(self.permissions)),
-            patch("deckbridge.portal.set_permission", side_effect=set_permission),
+            patch(
+                "deckbridge.compat.sdeck.oauth.portal.read_permissions",
+                side_effect=lambda: dict(self.permissions),
+            ),
+            patch(
+                "deckbridge.compat.sdeck.oauth.portal.set_permission", side_effect=set_permission
+            ),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             mock.__enter__()
@@ -61,6 +67,39 @@ class InstallTests(unittest.TestCase):
         self.args.apply = False
         before = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
         install(self.args)
+        after = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        self.assertEqual(before, after)
+
+    def obsolete_file(self):
+        path = self.home / "data/deckbridge/runtime/deckbridge/portal.py"
+        path.write_bytes(b"# previously owned module\n")
+        manifest = self.home / "state/deckbridge/install.json"
+        content = json.loads(manifest.read_text())
+        content["files"][str(path)] = digest(path.read_bytes())
+        manifest.write_text(json.dumps(content))
+        return path
+
+    def test_recursive_layout_and_contract_are_installed_and_old_owned_modules_removed(self):
+        install(self.args)
+        old = self.obsolete_file()
+        install(self.args)
+        runtime = self.home / "data/deckbridge/runtime"
+        self.assertFalse(old.exists())
+        for relative in (
+            "deckbridge/compat/sdeck/oauth/portal.py",
+            "deckbridge/compat/plugins/volume_controller/contract.json",
+            "deckbridge/backends/audio/pipewire.py",
+        ):
+            self.assertEqual((runtime / relative).read_bytes(), (ROOT / relative).read_bytes())
+        self.assertTrue((runtime / "dependencies/websockets/__init__.py").is_file())
+
+    def test_modified_obsolete_module_blocks_update_before_any_managed_writes(self):
+        install(self.args)
+        old = self.obsolete_file()
+        old.write_text("user modification")
+        before = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(RuntimeError, "Modified obsolete runtime file preserved"):
+            install(self.args)
         after = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
 

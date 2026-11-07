@@ -10,7 +10,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from deckbridge.client import call
 from deckbridge.protocol import MAX_FRAME, BridgeError
@@ -131,6 +131,20 @@ class IPCTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_command_has_no_fallback(self):
         result = await self.exchange(b'{"v":1,"id":"safe","method":"shell.execute","params":{}}\n')
         self.assertEqual(result["error"]["code"], "unsupported_method")
+
+    async def test_large_audio_response_is_a_bounded_error_and_service_stays_usable(self):
+        with patch(
+            "deckbridge.server.execute",
+            new_callable=AsyncMock,
+            return_value={"applications": [{"name": "x" * MAX_FRAME}]},
+        ):
+            with self.assertRaisesRegex(BridgeError, "response_too_large"):
+                await call(
+                    self.path,
+                    "actions.execute",
+                    {"capability": "audio.sessions.list", "arguments": {}},
+                )
+        self.assertIn("capabilities", await call(self.path, "capabilities.list", {}))
 
     async def test_client_frame_deadline(self):
         with patch("deckbridge.server.IO_TIMEOUT", 0.02):

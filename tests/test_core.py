@@ -9,11 +9,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from deckbridge.compat.sdeck.oauth.forwarding import forward
+from deckbridge.compat.sdeck.oauth.uri import from_desktop, validate_deep_link
 from deckbridge.config import Config, load
 from deckbridge.protocol import MAX_FRAME, BridgeError, decode_request, encode
 from deckbridge.providers import execute
-from deckbridge.uri import from_desktop, validate_deep_link, validate_url
-from deckbridge.wine import forward, run_bounded, running_instances
+from deckbridge.uri import validate_url
+from deckbridge.wine import run_bounded, running_instances
 from tools.install import MIME, default_line, quote_exec, replace_default
 
 
@@ -147,8 +149,10 @@ class ActionTests(unittest.IsolatedAsyncioTestCase):
         cfg = config(Path("/audited/prefix"))
         uri = "streamdeck://plugins/message/com.example/auth?code=a%26b&state=%25#x"
         with (
-            patch("deckbridge.wine.running_instances", return_value=[42]),
-            patch("deckbridge.wine.run_bounded", new_callable=AsyncMock) as run,
+            patch("deckbridge.compat.sdeck.oauth.forwarding.running_instances", return_value=[42]),
+            patch(
+                "deckbridge.compat.sdeck.oauth.forwarding.run_bounded", new_callable=AsyncMock
+            ) as run,
         ):
             result = await forward(cfg, uri)
         self.assertEqual(run.call_args.args[0], ["/usr/bin/wine", str(cfg.executable), uri])
@@ -159,8 +163,13 @@ class ActionTests(unittest.IsolatedAsyncioTestCase):
         cfg = config(Path("/audited/prefix"))
         for instances in ([], [1, 2]):
             with (
-                patch("deckbridge.wine.running_instances", return_value=instances),
-                patch("deckbridge.wine.run_bounded", new_callable=AsyncMock) as run,
+                patch(
+                    "deckbridge.compat.sdeck.oauth.forwarding.running_instances",
+                    return_value=instances,
+                ),
+                patch(
+                    "deckbridge.compat.sdeck.oauth.forwarding.run_bounded", new_callable=AsyncMock
+                ) as run,
             ):
                 with self.assertRaises(BridgeError):
                     await forward(cfg, "streamdeck://oauth?code=synthetic")
@@ -189,6 +198,38 @@ class ActionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_audio_and_adapter_are_optional_strict_and_individually_disableable(self):
+        body = (
+            'version=1\n[wine]\nprefix="/prefix"\n'
+            'executable="/prefix/drive_c/StreamDeck.exe"\ncommand="/usr/bin/wine"\n'
+            "[features]\ndeep_links=true\n"
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "config.toml"
+            path.write_text(body)
+            path.chmod(0o600)
+            cfg = load(path)
+            self.assertFalse(cfg.audio.enabled)
+            self.assertFalse(cfg.volume_controller)
+            path.write_text(
+                body + "[audio]\nenabled=true\nallow_write=true\n"
+                'allowed_apps=["app:io.deckbridge.audio-test"]\n'
+                "[compat.volume_controller]\nenabled=true\n"
+            )
+            cfg = load(path)
+            self.assertTrue(cfg.volume_controller)
+            self.assertEqual(cfg.audio.allowed_apps, ("app:io.deckbridge.audio-test",))
+            for suffix in (
+                "[audio]\nallow_write=true\n",
+                '[audio]\nenabled="true"\n',
+                '[audio]\nenabled=true\nallowed_apps="all"\n',
+                "[compat.volume_controller]\nenabled=true\n",
+                "[audio]\nenabled=true\n[compat.unknown]\nenabled=true\n",
+            ):
+                path.write_text(body + suffix)
+                with self.assertRaisesRegex(BridgeError, "invalid_audio_config"):
+                    load(path)
+
     def test_private_versioned_explicit_config(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "config.toml"

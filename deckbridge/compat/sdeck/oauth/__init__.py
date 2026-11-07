@@ -1,0 +1,1 @@
+"""compat sdeck oauth components."""

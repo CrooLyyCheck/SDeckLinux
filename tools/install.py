@@ -21,7 +21,7 @@ DESKTOP = "io.deckbridge.UrlHandler.desktop"
 MIME = "x-scheme-handler/streamdeck"
 sys.path.insert(0, str(ROOT))
 
-from deckbridge import portal  # noqa: E402 - standalone repository tool
+from deckbridge.compat.sdeck.oauth import portal  # noqa: E402 - standalone repository tool
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
 
@@ -171,12 +171,23 @@ def install(args: argparse.Namespace) -> None:
     if not executable.is_file() or not (prefix / "system.reg").is_file():
         raise RuntimeError("Expected existing Stream Deck installation not found")
     files = {
-        runtime / "deckbridge" / p.name: (p.read_bytes(), 0o600)
-        for p in sorted((ROOT / "deckbridge").glob("*.py"))
+        runtime / "deckbridge" / p.relative_to(ROOT / "deckbridge"): (p.read_bytes(), 0o600)
+        for p in sorted((ROOT / "deckbridge").rglob("*"))
+        if p.is_file() and p.suffix in {".py", ".json"}
     }
+    dependencies = ROOT / ".local/runtime-dependencies"
+    if not (dependencies / "websockets/__init__.py").is_file():
+        raise RuntimeError("Run make setup to prepare the hash-verified runtime dependency")
+    for path in sorted(dependencies.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
+            files[runtime / "dependencies" / path.relative_to(dependencies)] = (
+                path.read_bytes(),
+                0o600,
+            )
     launcher_text = (
         "#!/usr/bin/python3\nimport sys\nsys.dont_write_bytecode = True\n"
         f"sys.path.insert(0, {str(runtime)!r})\n"
+        f"sys.path.insert(0, {str(runtime / 'dependencies')!r})\n"
         "from deckbridge.__main__ import entrypoint\n"
         "raise SystemExit(entrypoint())\n"
     )
@@ -215,6 +226,15 @@ WantedBy=default.target
             path.exists() and digest(path.read_bytes()) not in {manifest["files"].get(str(path))}
         ):
             raise RuntimeError(f"Existing unowned/modified file preserved: {path}")
+    obsolete_files = []
+    for name, expected in manifest["files"].items():
+        obsolete = Path(name)
+        if obsolete.is_relative_to(runtime) and obsolete not in files:
+            if obsolete.is_symlink() or (
+                obsolete.exists() and digest(obsolete.read_bytes()) != expected
+            ):
+                raise RuntimeError("Modified obsolete runtime file preserved: " + str(obsolete))
+            obsolete_files.append(obsolete)
     config_path = config / "deckbridge/config.toml"
     # JSON string quoting is a subset of TOML basic-string quoting for these paths.
     cfg = f"""version = 1
@@ -270,6 +290,10 @@ deep_links = true
         atomic(path, content, mode)
         manifest["files"][str(path)] = digest(content)
         atomic(manifest_path, json.dumps(manifest, indent=2).encode())
+    for obsolete in obsolete_files:
+        obsolete.unlink(missing_ok=True)
+        del manifest["files"][str(obsolete)]
+    atomic(manifest_path, json.dumps(manifest, indent=2).encode())
     run(["/usr/bin/systemd-analyze", "--user", "verify", str(service)])
     atomic(mime, replace_default(text, MIME + "=" + DESKTOP + ";\n").encode())
     run(["/usr/bin/update-desktop-database", str(data / "applications")])

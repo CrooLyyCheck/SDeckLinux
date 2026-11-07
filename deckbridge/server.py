@@ -14,6 +14,7 @@ import sys
 import uuid
 from pathlib import Path
 
+from .backends.audio.pipewire import AudioBackend
 from .config import Config
 from .diagnostics import diagnose
 from .protocol import IO_TIMEOUT, MAX_FRAME, BridgeError, decode_request, encode, exact_keys
@@ -49,8 +50,9 @@ def private_directory(path: Path) -> None:
 
 
 class Server:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, audio: AudioBackend | None = None):
         self.config = config
+        self.audio = audio
         self.clients: set[asyncio.Task] = set()
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -81,7 +83,15 @@ class Server:
             if (
                 request.method == "actions.execute"
                 and isinstance(candidate, str)
-                and candidate in {"oauth.deepLink", "desktop.launch", "desktop.openUrl"}
+                and candidate
+                in {
+                    "oauth.deepLink",
+                    "desktop.launch",
+                    "desktop.openUrl",
+                    "audio.sessions.list",
+                    "audio.session.volume",
+                    "audio.session.mute",
+                }
             ):
                 metadata["capability"] = candidate
             if request.method in {"capabilities.list", "diagnostics.get"}:
@@ -90,9 +100,18 @@ class Server:
                 result = capabilities(self.config)
             elif request.method == "diagnostics.get":
                 result = await diagnose(self.config)
+                if self.audio:
+                    result["audio"] = {
+                        "ready": self.audio.ready.is_set() and not self.audio.failure,
+                        "error": self.audio.failure,
+                        "application_count": len(self.audio.applications),
+                        "write_enabled": self.audio.allow_write,
+                        "volume_controller": dict(self.audio.adapter_status),
+                    }
             else:
-                result = await execute(self.config, request.params)
+                result = await execute(self.config, request.params, audio=self.audio)
             reply = {"v": 1, "id": request_id, "result": result}
+            encode(reply)  # Oversized snapshots must produce a bounded error response.
             log("request_completed", correlation, **metadata)
         except BridgeError as exc:
             reply = {"v": 1, "id": request_id, "error": {"code": exc.code}}
@@ -148,9 +167,21 @@ def lock_socket(path: Path) -> int:
 async def serve(config: Config, path: Path) -> None:
     fd = lock_socket(path)
     server = None
-    handler = Server(config)
+    audio = (
+        AudioBackend(config.audio.allow_write, config.audio.allowed_apps)
+        if config.audio.enabled
+        else None
+    )
+    handler = Server(config, audio)
+    background = []
     try:
         server = await asyncio.start_unix_server(handler.handle, path=str(path), limit=MAX_FRAME)
+        if audio:
+            background.append(asyncio.create_task(audio.run()))
+            if config.volume_controller:
+                from .compat.plugins.volume_controller.server import run_adapter
+
+                background.append(asyncio.create_task(run_adapter(config, audio)))
         os.chmod(path, 0o600)
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
@@ -168,4 +199,8 @@ async def serve(config: Config, path: Path) -> None:
             if handler.clients:
                 await asyncio.gather(*tuple(handler.clients), return_exceptions=True)
             await asyncio.to_thread(path.unlink, missing_ok=True)
+        for task in background:
+            task.cancel()
+        if background:
+            await asyncio.gather(*background, return_exceptions=True)
         os.close(fd)

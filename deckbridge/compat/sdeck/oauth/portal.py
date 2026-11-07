@@ -6,7 +6,7 @@ import json
 import subprocess
 from typing import Any
 
-from .protocol import BridgeError
+from ....protocol import BridgeError
 
 SERVICE = "org.freedesktop.impl.portal.PermissionStore"
 OBJECT = "/org/freedesktop/impl/portal/PermissionStore"

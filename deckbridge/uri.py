@@ -1,7 +1,7 @@
 """Validate without decoding, re-encoding, truncating or logging the URI."""
 
 import re
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from .protocol import BridgeError
 
@@ -36,23 +36,5 @@ def validate(value: object, schemes: set[str]) -> str:
     return value
 
 
-def validate_deep_link(value: object) -> str:
-    return validate(value, {"streamdeck"})
-
-
 def validate_url(value: object) -> str:
     return validate(value, {"http", "https"})
-
-
-def from_desktop(value: str) -> str:
-    """KDE %u decodes spaces/Unicode; restore their URI encoding only at ingress.
-
-    Reserved escapes and percent signs remain opaque. Never unquote the URI.
-    """
-    if any(ord(c) < 32 or ord(c) == 127 for c in value):
-        raise BridgeError("invalid_uri")
-    try:
-        encoded = quote(value, safe=":/?#[]@!$&'()*+,;=%-._~")
-    except UnicodeError:
-        raise BridgeError("invalid_uri") from None
-    return validate_deep_link(encoded)

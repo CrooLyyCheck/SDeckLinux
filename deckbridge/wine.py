@@ -8,7 +8,6 @@ from pathlib import Path
 
 from .config import Config
 from .protocol import ACTION_TIMEOUT, BridgeError
-from .uri import validate_deep_link
 
 
 def running_instances(config: Config, proc_root: Path = Path("/proc")) -> list[int]:
@@ -57,29 +56,3 @@ async def run_bounded(
         raise
     if rc:
         raise BridgeError("launcher_failed")
-
-
-async def forward(config: Config, value: object) -> dict:
-    uri = validate_deep_link(value)
-    if not config.deep_links:
-        raise BridgeError("capability_disabled")
-    instances = await asyncio.to_thread(running_instances, config)
-    if len(instances) != 1:
-        raise BridgeError("instance_missing" if not instances else "instance_ambiguous")
-    env = dict(os.environ)
-    env.update(
-        WINEPREFIX=str(config.prefix),
-        WINEARCH="win64",
-        WINEDLLOVERRIDES="winemenubuilder.exe=d",
-        WINEDEBUG="-all",
-    )
-    await run_bounded(
-        [str(config.wine), str(config.executable), uri], env=env, cwd=config.executable.parent
-    )
-    if instances[0] not in await asyncio.to_thread(running_instances, config):
-        raise BridgeError("instance_lost")
-    return {
-        "status": "forwarded-unconfirmed",
-        "instance_pid": instances[0],
-        "application_ack": False,
-    }

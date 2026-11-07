@@ -37,6 +37,20 @@ WIRE_ERRORS = frozenset(
         "backend_unavailable",
         "timeout_outcome_unknown",
         "response_too_large",
+        "audio_disabled",
+        "audio_not_ready",
+        "audio_backend_failed",
+        "audio_invalid_snapshot",
+        "audio_snapshot_too_large",
+        "audio_backend_disconnected",
+        "pipewire_pulse_required",
+        "audio_write_disabled",
+        "invalid_audio_volume",
+        "audio_application_gone",
+        "audio_stream_gone",
+        "audio_stream_read_only",
+        "audio_partial_action",
+        "audio_action_failed",
     }
 )
 

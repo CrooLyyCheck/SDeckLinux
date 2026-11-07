@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import stat
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .protocol import BridgeError
@@ -34,6 +34,13 @@ def socket_path() -> Path:
 
 
 @dataclass(frozen=True)
+class AudioConfig:
+    enabled: bool = False
+    allow_write: bool = False
+    allowed_apps: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Config:
     prefix: Path
     executable: Path
@@ -41,6 +48,8 @@ class Config:
     deep_links: bool
     applications: dict[str, tuple[str, ...]]
     urls: dict[str, str]
+    audio: AudioConfig = field(default_factory=AudioConfig)
+    volume_controller: bool = False
 
 
 def absolute(value: object) -> Path:
@@ -58,7 +67,7 @@ def load(path: Path) -> Config:
     except (ValueError, UnicodeError):
         raise BridgeError("invalid_config") from None
     if (
-        set(data) - {"version", "wine", "features", "applications", "urls"}
+        set(data) - {"version", "wine", "features", "applications", "urls", "audio", "compat"}
         or type(data.get("version")) is not int
         or data["version"] != 1
     ):
@@ -93,6 +102,28 @@ def load(path: Path) -> Config:
         if not name:
             raise BridgeError("invalid_url_mapping")
         validate_url(url)
+    audio, compat = data.get("audio", {}), data.get("compat", {})
+    if (
+        not isinstance(audio, dict)
+        or set(audio) - {"enabled", "allow_write", "allowed_apps"}
+        or not isinstance(compat, dict)
+        or set(compat) - {"volume_controller"}
+    ):
+        raise BridgeError("invalid_audio_config")
+    adapter = compat.get("volume_controller", {})
+    if not isinstance(adapter, dict) or set(adapter) - {"enabled"}:
+        raise BridgeError("invalid_audio_config")
+    enabled = audio.get("enabled", False)
+    write, adapter_enabled = audio.get("allow_write", False), adapter.get("enabled", False)
+    allowed_apps = audio.get("allowed_apps", [])
+    if (
+        any(type(v) is not bool for v in (enabled, write, adapter_enabled))
+        or not isinstance(allowed_apps, list)
+        or any(not isinstance(v, str) or not v or len(v) > 512 for v in allowed_apps)
+        or (adapter_enabled and not enabled)
+        or (write and not enabled)
+    ):
+        raise BridgeError("invalid_audio_config")
     return Config(
         prefix,
         exe,
@@ -100,4 +131,6 @@ def load(path: Path) -> Config:
         features["deep_links"],
         {k: tuple(v) for k, v in applications.items()},
         urls,
+        AudioConfig(enabled, write, tuple(allowed_apps)),
+        adapter_enabled,
     )

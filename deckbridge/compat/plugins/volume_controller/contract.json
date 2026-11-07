@@ -1,0 +1,11 @@
+{
+  "plugin_uuid": "com.elgato.volume-controller",
+  "plugin_version": "2.0.5.201",
+  "protocol": "elgato-audio-router-jsonrpc",
+  "protocol_version": "2.0",
+  "endpoint": "ws://127.0.0.1:1844/",
+  "files": {
+    "bin/plugin.js": "2bbf31c714385d20e5d85c3c6302b1414a3b1edb87bcc73a983bf3b978b66b9a",
+    "bin/addons/winAudioDeviceService.node": "63899b40150d63506dea95aa7532c3afd5da9983fdbb635bcfe731dd10638d64"
+  }
+}

@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 
 from . import __version__
+from .compat.sdeck.oauth.portal import read_permissions, summary
 from .config import Config
-from .portal import read_permissions, summary
 from .protocol import IO_TIMEOUT, BridgeError
 from .wine import running_instances
 

@@ -32,7 +32,7 @@ dependency direction and approach to adding compatibility.
 
 [**View compatibility tables →**](docs/COMPATIBILITY.md)
 
-See Application, basic Stream Deck functions and plugins, progress here.
+See Application, basic Stream Deck functions and plugins progress here.
 
 ## Development
 

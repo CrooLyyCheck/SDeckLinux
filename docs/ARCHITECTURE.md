@@ -1,5 +1,66 @@
 # Architecture
 
+## Design approach
+
+SDeckLinux implements compatibility at the interfaces used by Stream Deck and
+its plugins. Target-facing contracts describe the expected calls, data and
+lifecycle; native backends supply Linux behavior independently of those contracts.
+
+The architectural reference is [AnyPS5](https://github.com/boykopovar/AnyPS5),
+particularly its separation of executable conversion from native implementations
+of target system libraries in [its architecture](https://github.com/boykopovar/AnyPS5/blob/main/docs/dev/ARCHITECTURE.md).
+SDeckLinux applies the interface/implementation separation to its own domain:
+Wine supplies Windows execution, while DeckBridge handles explicit host
+integration boundaries. No executable relinking is implemented here.
+
+## Layers and dependency direction
+
+```mermaid
+flowchart LR
+    app["Original Stream Deck and plugins"] --> wine["Wine: Windows APIs and HID"]
+    app <-->|"Host integration contracts"| compat["Application / plugin compatibility"]
+    compat <--> backend["Reusable Linux backends"]
+    backend <--> host["PipeWire, desktop services, systemd"]
+```
+
+The diagram describes responsibilities; the exact transports are shown below.
+
+| Layer | Ownership | Dependency rule |
+| --- | --- | --- |
+| Windows execution | Existing Wine installation and original vendor software | Preserve working behavior; audit a missing boundary before adding an implementation. |
+| Application compatibility | `deckbridge/compat/sdeck/<service>/` | Stream Deck-specific URL, authorization and renderer integration; no plugin-specific wire fields. |
+| Plugin compatibility | `deckbridge/compat/plugins/<plugin_name>/` | Exact plugin contracts, version checks and translations into reusable host operations. |
+| Native implementations | `deckbridge/backends/<capability>/` | Linux models, service access and lifecycle; never import plugin contracts or expose vendor wire IDs. |
+| Shared runtime | Configuration, IPC, process helpers and installation | Bounded transport, local policy and reversible deployment; no plugin behavior in generic IPC. |
+
+Compatibility modules depend on host backends, never the reverse. A backend
+models a host capability such as an audio stream; an adapter owns how that model
+maps to a particular consumer's methods, units and identifiers. For example,
+Volume Controller's synthetic `processID` belongs to its adapter, while PipeWire
+server/stream identities belong to the audio backend.
+
+## Adding compatibility
+
+1. Identify the actual failing API or service boundary and the consumer version.
+   Record the request/response types, units, error behavior and lifecycle without
+   storing private payloads or credentials.
+2. Check existing Wine behavior first. Reuse a host backend when the missing
+   behavior is a Linux capability; isolate application- or plugin-specific
+   translation in the corresponding compatibility directory.
+3. Implement the required semantics, including notifications, disappearance and
+   failure. Unsupported operations return explicit errors; success-only stubs
+   do not establish compatibility.
+4. Keep the integration individually switchable and installation reversible.
+   Add hardware-free contract coverage for meaningful behavior, then use
+   separately authorized host/device tests where needed.
+5. Record implementation scope separately from functional acceptance. Update the
+   application, basic-function or versioned-plugin compatibility entry only with
+   observable evidence; startup alone is insufficient.
+
+New shared API implementations require a demonstrated consumer. A generic Win32
+shim or additional platform backend is not represented as implemented by an
+empty directory or a speculative interface.
+
 ## Current boundaries
 
 ```text

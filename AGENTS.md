@@ -8,6 +8,7 @@
 - Before writing to an existing Wine prefix, check free space and make a bounded, verified private backup of the affected files. Never commit prefix data, binaries, tokens, logs or device identifiers.
 - Runtime code uses Python >= 3.11. The optional Audio Router adapter uses pinned `websockets` for RFC 6455 framing; native icons use a bounded system-Python worker with existing GI/GTK3/GdkPixbuf packages. The core uses the standard library. Do not add a toolchain or dependency without a concrete need.
 - Keep service-specific compatibility in `deckbridge/compat/sdeck/`, plugin-specific contracts/adapters in `deckbridge/compat/plugins/<plugin_name>/`, and reusable Linux capabilities in `deckbridge/backends/`. Never mix plugin wire fields into backend models.
+- Follow the interface/implementation separation described in `docs/ARCHITECTURE.md`, using AnyPS5 as a design reference. Base compatibility on observed target contracts and native host behavior; unsupported operations must fail explicitly rather than return success-only stubs.
 - `make setup` creates an isolated development environment; `make check` runs format, lint, byte compilation and hardware-free tests. `make format` formats source.
 - Hardware/input/audio mutation tests are separate and opt-in; see `docs/TESTING.md`. Do not inject input or change volume on the active desktop without consent.
 - Never claim OAuth, plugin or hardware functionality solely from process exit status. Record observable evidence and untested boundaries in `docs/STATUS.md`.

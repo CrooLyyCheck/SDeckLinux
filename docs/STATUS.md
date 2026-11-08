@@ -88,6 +88,15 @@ own behavioral acceptance gate, rather than being inferred from panel visibility
 Historical evidence below describes the preceding accepted milestone; global
 writes/icon availability have changed as detailed above.
 
+## Deferred volume-feedback sound
+
+The optional `canberra-gtk-play` feedback experiment was stopped at the user's
+request. Helper completion did not establish audibility; the user reported no
+sound. The experimental code, tests, live preference and installed module were
+removed, restoring the previously verified runtime. Existing volume control,
+icons, event-stream filtering and accepted WebEngine preferences are preserved.
+Do not resume this experiment without a new user request.
+
 ## Audited baseline
 
 | Item | Observed state |

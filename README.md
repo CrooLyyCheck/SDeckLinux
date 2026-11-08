@@ -50,6 +50,15 @@ make check
 `make check` runs formatting, lint, byte compilation and hardware-free tests.
 Host, hardware and audio mutation tests are [separate and opt-in](docs/TESTING.md).
 
+## Contributing
+
+Contributions are welcome, including vibe coding and other AI-assisted workflows.
+Please use sufficiently capable models such as **GPT 6.1 Sol**, **Claude Sonnet
+5.5**, **Kimi K3.1 Pro**, or models of comparable or greater capability.
+
+Review generated code, follow the [repository rules](AGENTS.md) and
+[architecture](docs/ARCHITECTURE.md), and run `make check` before submitting changes.
+
 ## Project scope
 
 Installation requires an existing official Stream Deck application under Wine.

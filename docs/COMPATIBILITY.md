@@ -14,44 +14,44 @@ WirePlumber 0.5.18, and Stream Deck MK.2**. Other environments are untested.
 - ⚪ **Untested** — no functional acceptance recorded.
 - 🔴 **Not implemented / Unavailable** — the feature is not provided.
 
-Each row includes a colored marker and a text label. Detailed observations and
-test boundaries are in [STATUS.md](STATUS.md).
+The first column uses the dots defined above. Detailed observations and test
+boundaries are in [STATUS.md](STATUS.md).
 
 ## Stream Deck application
 
-| Area | Status | Scope / limitations |
-| --- | :---: | --- |
-| Startup and main GUI | 🟢 **Verified** | Original Windows application through the existing Wine installation. |
-| `streamdeck://` callbacks | 🟢 **Verified** | Browser/portal handoff to an existing same-prefix instance; encoded and Unicode contents supported. |
-| Marketplace OAuth | 🟢 **Verified** | Account linking in the original application. |
-| Marketplace installation | 🟡 **Partial** | Volume Controller installation; other downloads and updates are untested. |
-| Existing profiles and resources | 🟢 **Verified** | Preserved in the original application; the bridge does not rewrite profiles. |
-| Plugin settings / property inspector | 🟡 **Partial** | Main Auto Detection panel and Step Size slider. Requires the [WebEngine workaround](USAGE.md#original-plugin-settings-under-wine): renderer sandbox off, software rendering on. Step Size changes need behavioral verification. |
-| Bridge installation and removal | 🟢 **Verified** | User-only integration with reversible, scoped MIME/portal changes. |
-| Stream Deck application updates | ⚪ **Untested** | Updater behavior and compatibility after an upgrade. |
+| Status | Area | Scope / limitations |
+| :---: | --- | --- |
+| 🟢 | Startup and main GUI | Original Windows application through the existing Wine installation. |
+| 🟢 | `streamdeck://` callbacks | Browser/portal handoff to an existing same-prefix instance; encoded and Unicode contents supported. |
+| 🟢 | Marketplace OAuth | Account linking in the original application. |
+| 🟡 | Marketplace installation | Volume Controller installation; other downloads and updates are untested. |
+| 🟢 | Existing profiles and resources | Preserved in the original application; the bridge does not rewrite profiles. |
+| 🟡 | Plugin settings / property inspector | Main Auto Detection panel and Step Size slider. Requires the [WebEngine workaround](USAGE.md#original-plugin-settings-under-wine): renderer sandbox off, software rendering on. Step Size changes need behavioral verification. |
+| 🟢 | Bridge installation and removal | User-only integration with reversible, scoped MIME/portal changes. |
+| ⚪ | Stream Deck application updates | Updater behavior and compatibility after an upgrade. |
 
 ## Basic Stream Deck functions
 
-| Function | Status | Scope / limitations |
-| --- | :---: | --- |
-| MK.2 USB/HID connection | 🟢 **Verified** | Device access and connection through the original application. |
-| Key images and physical buttons | 🟡 **Partial** | Volume Controller's dynamic Auto profile; other actions require separate testing. |
-| Profile loading | 🟡 **Partial** | Existing profiles and dynamic Auto profile; navigation, folders and switching are not exhaustively tested. |
-| Launching native Linux applications | 🟡 **Partial** | Allowlisted CLI/Wine handoff; physical GUI-launch action untested. |
-| Opening allowlisted URLs | ⚪ **Untested** | Provider implemented; physical action/browser behavior untested. |
-| Original Wine hotkey actions | ⚪ **Untested** | Desktop-wide shortcuts require separate testing. |
-| Native Wayland hotkeys, text and clipboard injection | 🔴 **Not implemented** | No native input backend. |
-| Multi Actions, media keys and automatic profile switching | ⚪ **Untested** | No functional coverage. |
-| Other device models, dials, touchscreens and hotplug | ⚪ **Untested** | Current device coverage is limited to MK.2. |
-| Volume-change feedback sound | 🔴 **Unavailable** | Not provided. |
+| Status | Function | Scope / limitations |
+| :---: | --- | --- |
+| 🟢 | MK.2 USB/HID connection | Device access and connection through the original application. |
+| 🟡 | Key images and physical buttons | Volume Controller's dynamic Auto profile; other actions require separate testing. |
+| 🟡 | Profile loading | Existing profiles and dynamic Auto profile; navigation, folders and switching are not exhaustively tested. |
+| 🟡 | Launching native Linux applications | Allowlisted CLI/Wine handoff; physical GUI-launch action untested. |
+| ⚪ | Opening allowlisted URLs | Provider implemented; physical action/browser behavior untested. |
+| ⚪ | Original Wine hotkey actions | Desktop-wide shortcuts require separate testing. |
+| 🔴 | Native Wayland hotkeys, text and clipboard injection | No native input backend. |
+| ⚪ | Multi Actions, media keys and automatic profile switching | No functional coverage. |
+| ⚪ | Other device models, dials, touchscreens and hotplug | Current device coverage is limited to MK.2. |
+| 🔴 | Volume-change feedback sound | Not provided. |
 
 ## Plugins
 
-| Plugin | Version | Status | Scope / limitations |
-| --- | --- | :---: | --- |
-| Elgato Volume Controller | `2.0.5.201` | 🟡 **Partial** | Auto app discovery, app/System output volume, icons/text and event-stream filtering. Hardware mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
-| Elgato Tutorial | `1.0.4.3` | ⚪ **Untested** | No functional coverage. |
-| Other plugins / versions | — | ⚪ **Untested** | No universal plugin compatibility or generic Windows Core Audio implementation. |
+| Status | Plugin | Version | Scope / limitations |
+| :---: | --- | --- | --- |
+| 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. Hardware mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
+| ⚪ | Elgato Tutorial | `1.0.4.3` | No functional coverage. |
+| ⚪ | Other plugins / versions | — | No universal plugin compatibility or generic Windows Core Audio implementation. |
 
 Volume Controller uses an exact version/hash contract. Direct PipeWire streams
 without Pulse handles are read-only. Settings UI requires the

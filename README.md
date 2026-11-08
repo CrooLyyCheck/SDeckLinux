@@ -150,7 +150,22 @@ deckbridge/compat/sdeck/oauth/                # Stream Deck URL/OAuth transport
 deckbridge/compat/plugins/volume_controller/ # Versioned plugin protocol/peer checks
 deckbridge/backends/audio/                   # Reusable Linux audio model/backend
 deckbridge/backends/desktop/                 # Native desktop icon lookup
+deckbridge/compat/sdeck/webview/              # Explicit embedded-renderer launch mode
 ```
+
+## Original plugin settings under Wine
+
+The blank inspector was reproduced at the WebEngine sandbox boundary. A
+separately authorized test rendered the **original** Auto Detection settings and
+its Step Size 1–25 slider; returning to sandboxed launch reproduced the issue.
+See the [controlled result and opt-in launch mode](docs/compat/sdeck/webview.md).
+
+`deckbridge streamdeck` delegates to the existing installer launcher and keeps
+the sandbox enabled by default. The optional `--no-webview-sandbox` flag or
+`[compat.sdeck.webview] renderer_sandbox = false` changes only that app's child
+environment. It reduces renderer isolation and requires a deliberate user
+choice. Quit an existing instance before changing modes. No permanent mode was
+enabled by the one-off test; the original launcher remains independent.
 
 ## Disable or remove integration
 

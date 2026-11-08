@@ -53,6 +53,7 @@ class Config:
     volume_controller: bool = False
     volume_controller_display: str = "icons"
     volume_controller_hide_events: bool = True
+    streamdeck_webview_sandbox: bool = True
 
 
 def absolute(value: object) -> Path:
@@ -110,12 +111,21 @@ def load(path: Path) -> Config:
         not isinstance(audio, dict)
         or set(audio) - {"enabled", "allow_write", "allowed_apps", "allow_system_write"}
         or not isinstance(compat, dict)
-        or set(compat) - {"volume_controller"}
+        or set(compat) - {"volume_controller", "sdeck"}
     ):
         raise BridgeError("invalid_audio_config")
     adapter = compat.get("volume_controller", {})
     if not isinstance(adapter, dict) or set(adapter) - {"enabled", "display", "hide_event_streams"}:
         raise BridgeError("invalid_audio_config")
+    sdeck = compat.get("sdeck", {})
+    if not isinstance(sdeck, dict) or set(sdeck) - {"webview"}:
+        raise BridgeError("invalid_webview_config")
+    webview = sdeck.get("webview", {})
+    if not isinstance(webview, dict) or set(webview) - {"renderer_sandbox"}:
+        raise BridgeError("invalid_webview_config")
+    webview_sandbox = webview.get("renderer_sandbox", True)
+    if type(webview_sandbox) is not bool:
+        raise BridgeError("invalid_webview_config")
     enabled = audio.get("enabled", False)
     write, adapter_enabled = audio.get("allow_write", False), adapter.get("enabled", False)
     allowed_apps = audio.get("allowed_apps", [])
@@ -146,4 +156,5 @@ def load(path: Path) -> Config:
         adapter_enabled,
         display,
         hide_events,
+        webview_sandbox,
     )

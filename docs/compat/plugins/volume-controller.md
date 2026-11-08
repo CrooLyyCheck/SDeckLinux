@@ -112,10 +112,12 @@ about 30 seconds), without restarting Stream Deck or replaying actions.
   no automatic global test writes or attempted volume restoration.
 - Input/device-specific addon actions retain Wine behavior. Generic Core Audio,
   manual actions, hardware mute and other models/dials need separate acceptance.
-- Inspector UI remains under diagnosis: actual WebEngine renderer commands hang
-  although the browser process responds. The existing readable Auto inspector
-  includes a Step Size 1–25 control. Do not claim missing controls are repaired
-  just because that HTML exists or the audio service works.
+- Inspector UI: the original 1–25 Step Size slider rendered during a separately
+  authorized one-off WebEngine sandbox comparison. Normal launch was restored
+  and reproduced the blank controls. The optional process-local launch mode is
+  installed but remains disabled pending a daily-use decision. See
+  [the exact boundary](../sdeck/webview.md). This is not an Audio Router issue or
+  a vendor inspector patch.
 
 See [TESTING](../../TESTING.md) for opt-in commands and
 [ADR 0002](../../adr/0002-volume-controller-service-adapter.md) for the design.

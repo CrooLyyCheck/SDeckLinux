@@ -159,6 +159,29 @@ The recorded workstation test authorized fixture mutations, then separately
 authorized normal button-driven app control. Preserve that distinction in future
 sessions. No automated real-app or global-volume tests were performed.
 
+## Explicit WebEngine inspector comparison
+
+Do not infer property-inspector support from successful Audio Router RPC. The
+audited blank inspector was isolated with a separately authorized **one-off**
+renderer sandbox comparison. Normal launch stalled renderer document commands;
+the original inspector and Step Size 1–25 slider rendered in the approved test.
+The app was then quit and relaunched normally; the test/debug environment was
+absent and the loopback debug listener closed. The user again saw blank controls.
+
+`make check` does not run Wine or this comparison. `deckbridge streamdeck`
+keeps sandboxing by default and delegates to the original audited launcher.
+Its explicit `--no-webview-sandbox` launch flag or optional host preference is a
+security-relevant user choice, not a default test setting. Quit a running
+instance before changing its launch environment. See the
+[exact scope and result](compat/sdeck/webview.md).
+
+A delayed human Quit must be observed using the exact main PID/start identity;
+transient matching Wine helpers must not be mistaken for the main exiting.
+The initial ad-hoc observer aborted on such a transition and the app had to be
+started explicitly. The corrected cleanup watched the exact main, allowed its
+helpers to finish, and then started the normal launcher. Do not advertise an
+automatic restart as completed before observing the returned app and flags.
+
 ## Rollback regression
 
 Run outside an ongoing OAuth flow:

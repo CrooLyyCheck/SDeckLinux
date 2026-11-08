@@ -31,6 +31,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | --- | --- |
 | `deckbridge.uri` | Shared URI/HTTP URL validation |
 | `deckbridge.compat.sdeck.oauth` | Stream Deck URI validation, KDE ingress repair, exact-instance forwarding and scoped portal integration |
+| `deckbridge.compat.sdeck.webview` | Default-sandboxed launch delegation with an explicit renderer-isolation compatibility option |
 | `deckbridge.config` | Private v1 TOML, exact Wine paths, individually enabled mappings |
 | `deckbridge.protocol` | Bounded typed request envelope and fixed error codes |
 | `deckbridge.client` / `server` | Framing, peer UID, deadlines, disconnects and explicit reconnection |

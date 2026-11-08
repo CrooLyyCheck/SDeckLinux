@@ -39,22 +39,44 @@ the bridge. No vendor assets or application profiles are patched.
 libcanberra) from this plugin's view while leaving host discovery intact. The
 new contract tests cover event churn, native PNG responses, text selection,
 system action scope/races and the original client's post-enumeration System
-rekey/synchronization boundary. Current hardware-free suite: 72 tests pass.
+rekey/synchronization boundary. That slice passed 72 tests; the current total after launch-mode coverage is 75.
 
-The inspector problem remains under active diagnosis. A verified bounded backup
-of 19 registry/profile manifests (134380 bytes) was taken. The user exited via
-Quit and the unchanged launcher restarted the app with temporary loopback-only
-Qt WebEngine diagnostics (`127.0.0.1:23654`). Two targets exist: Tutorial and an
-about:blank inspector. Browser CDP responds, while renderer document commands
-stall; the local inspector files themselves contain the Step Size 1–25 slider.
-No sandbox/security setting was disabled. The debug listener must be removed by
-relaunching normally after diagnosis. Do not equate that diagnostic restart with
-a UI fix. The user confirmed System control, native icons and no libcanberra flicker.
+The inspector boundary is now reproduced by a controlled normal/test/normal
+comparison. A verified bounded backup of 19 registry/profile manifests (134380
+bytes) preceded diagnosis. With normal sandboxing, browser CDP responded but
+renderer/document commands stalled. The user then authorized **one test only**
+without the renderer sandbox, scoped to the original process environment.
+The unchanged original inspector rendered: its panel/slider were visible, range
+1–25, displayed value 13. This did not change a slider setting. Private evidence:
+`webview-oneoff-result.json` and `original-volume-inspector.png`.
+
+The user quit the test and the normal original launcher returned. The test/debug
+variables are absent and the debug listener is closed; the user confirmed the
+controls are blank again. An initial ad-hoc restart observer aborted on a
+transient matching-process change and did not restart the app. The corrected
+cleanup tracked the exact main PID, waited for its helpers and verified the
+normal returned process. No test mode remains active.
+
+A reviewed optional launch route is installed in `compat/sdeck/webview/`:
+`deckbridge streamdeck` delegates to the original audited launcher and defaults
+to sandboxed mode. An explicit `--no-webview-sandbox` argument or a deliberate
+`[compat.sdeck.webview] renderer_sandbox = false` host preference can select the
+compatibility mode. Existing instances are preserved and require Quit first.
+The audited configuration still defaults to true: daily-use authorization was
+not included in the one-off test. No existing launcher/desktop, registry, vendor
+asset or global environment was edited. Read [the scope](compat/sdeck/webview.md)
+and [ADR 0003](adr/0003-opt-in-webview-launch.md) before changing that preference.
+Current suite: **75 hardware-free tests pass**. The final synthetic encoded/
+Unicode deep-link regression reached the same normal original instance, and
+pinned vendor hashes still match.
+
+The user confirmed System control, native icons and no libcanberra flicker.
 The observed default level changed from about 43% to 48% during that user-driven
 window; do not infer one exact button/direction from the net change. Local
 metadata evidence is `system-icons-event-filter-smoke.json`. No automatic global
-write was issued. Inspector diagnosis remains pending a separately authorized
-renderer sandbox comparison; sandboxing has not been disabled.
+write was issued. Remaining action: a deliberate user choice about daily use of
+the now-demonstrated renderer compatibility mode. Until then the normal launch
+retains its known blank-inspector limitation.
 
 Historical evidence below describes the preceding accepted milestone; global
 writes/icon availability have changed as detailed above.
@@ -98,7 +120,7 @@ private snapshot covers the old host launcher/desktop/installed installer.
 
 | Check | Result and limit |
 | --- | --- |
-| `make check` | 72 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
+| `make check` | 75 tests pass, Ruff format/lint and Python byte compilation pass; no physical device required |
 | IPC | Real AF_UNIX request/response, reconnect, malformed/oversized/partial frames, frame deadline, private path/lock/symlink protections |
 | Helper deadline | A real hung Python child is killed and reaped; no indefinite launcher wait |
 | Installer tests | Temporary filesystem: dry-run unchanged, repeated install/deactivate, prior MIME restoration, unrelated/user-modified files preserved |
@@ -134,7 +156,7 @@ data are committed.
 | Physical integration | User confirmed dynamic test column/up/down. Initial scalar-unit bug was corrected and regression-tested. Fresh single Volume Down changed 1.0 to 0.9499969482421875, within one Pulse unit of 95% |
 | Isolation/cleanup | Unlinked pacat timed out, correctly explaining the disappearing column. Replaced with zero samples into an owned low-priority null sink. Fixture process, descriptor and module removed after acceptance |
 | Security | Real unrelated native WebSocket client rejected HTTP 403; temporary transport tests also cover browser Origin rejection, disabled writes and backend-failure disconnect |
-| Default suite | 72 tests: model/channel balance, stale IDs/server epoch, write allowlists, scalar contract/events, transport/process attribution, recursive install/obsolete-file preservation, bounded oversized replies and prior regressions |
+| Default suite | 75 tests: model/channel balance, stale IDs/server epoch, write allowlists, scalar contract/events, transport/process attribution, recursive install/obsolete-file preservation, bounded oversized replies and prior regressions |
 | Regression | Synthetic encoded/Unicode deep-link reached the same original instance after module reorganization; pinned vendor hashes still match; original app was not restarted for audio integration |
 | Normal use | User explicitly approved broadening fixture-only writes to other application streams. Live `[audio]` enabled/write true, empty allowed_apps; private pre-change config backup retained |
 
@@ -189,7 +211,8 @@ repeated; its previous acceptance and a fresh synthetic transport regression are
 separate evidence. For future OAuth regressions, collect only fixed-code/boolean
 observations; the application's own private logs can contain real callback data.
 
-The next unresolved boundary is the empty property-inspector renderer. Normal
+The inspector boundary is reproduced; its optional launch mode remains disabled
+pending a daily-use decision. Normal
 app/System/icon/event-filter behavior was confirmed by the user; physical mute
 and manual-detection acceptance remain separate. No additional automatic real-app mutation is
 authorized by the fixture test. Native-only PipeWire stream control, generic Core Audio and Wayland input are

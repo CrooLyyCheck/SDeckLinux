@@ -166,7 +166,10 @@ audited blank inspector was isolated with a separately authorized **one-off**
 renderer sandbox comparison. Normal launch stalled renderer document commands;
 the original inspector and Step Size 1–25 slider rendered in the approved test.
 The app was then quit and relaunched normally; the test/debug environment was
-absent and the loopback debug listener closed. The user again saw blank controls.
+absent and the loopback debug listener closed. The user again saw blank controls. Later, after separate daily-use consent,
+renderer startup worked but the native widget was still blank. Adding only
+Chromium software rendering (`--disable-gpu`) made it visible and the user
+confirmed it. A CDP screenshot alone must not be treated as native-widget acceptance.
 
 `make check` does not run Wine or this comparison. `deckbridge streamdeck`
 keeps sandboxing by default and delegates to the original audited launcher.

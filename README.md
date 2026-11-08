@@ -155,17 +155,20 @@ deckbridge/compat/sdeck/webview/              # Explicit embedded-renderer launc
 
 ## Original plugin settings under Wine
 
-The blank inspector was reproduced at the WebEngine sandbox boundary. A
-separately authorized test rendered the **original** Auto Detection settings and
-its Step Size 1–25 slider; returning to sandboxed launch reproduced the issue.
+The blank inspector involved two WebEngine boundaries: renderer sandbox startup
+and native GPU composition. The original Auto Detection settings and Step Size
+1–25 slider became visible with the approved renderer mode plus software
+rendering; the user confirmed the native panel.
 See the [controlled result and opt-in launch mode](docs/compat/sdeck/webview.md).
 
 `deckbridge streamdeck` delegates to the existing installer launcher and keeps
 the sandbox enabled by default. The optional `--no-webview-sandbox` flag or
 `[compat.sdeck.webview] renderer_sandbox = false` changes only that app's child
 environment. It reduces renderer isolation and requires a deliberate user
-choice. Quit an existing instance before changing modes. No permanent mode was
-enabled by the one-off test; the original launcher remains independent.
+choice. `software_rendering = true` (or `--software-webview`) independently adds
+`--disable-gpu`. The audited host enables both after user acceptance. Start it
+with **`deckbridge streamdeck`** to apply these preferences. Quit an existing
+instance before changing modes; the original launcher remains independent.
 
 ## Disable or remove integration
 

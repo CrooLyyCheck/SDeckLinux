@@ -24,6 +24,20 @@ This comparison establishes a dependency on the renderer sandbox flag in this
 configuration. It does not establish a general absence of sandbox support in
 Wine, nor provide a Windows sandbox implementation.
 
+## Native window composition acceptance
+
+The first comparison established that the original HTML could render, not that
+the native application actually displayed it. The user subsequently showed the
+correct main Auto action selected, with an empty native inspector area despite
+the now-healthy renderer. No-sandbox mode alone was insufficient.
+
+Adding only `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` to the approved launch
+made the panel visible in the native window; the user confirmed the result.
+This is the accepted current configuration: renderer sandbox disabled with
+separate daily-use consent, plus Chromium software rendering. No Qt Quick,
+global GPU, security or vendor-file setting was changed. Remote debugging is off.
+Evidence is private in `webview-composition-smoke.json`.
+
 ## Explicit launch option
 
 The default remains sandboxed:
@@ -42,7 +56,7 @@ plugins, desktop entries or system environment.
 Only after explicitly accepting the renderer isolation tradeoff, a launch can use:
 
 ```bash
-deckbridge streamdeck --no-webview-sandbox
+deckbridge streamdeck --no-webview-sandbox --software-webview
 ```
 
 Alternatively a deliberate private host preference makes that mode apply when
@@ -51,10 +65,14 @@ using `deckbridge streamdeck`:
 ```toml
 [compat.sdeck.webview]
 renderer_sandbox = false
+software_rendering = true
 ```
 
-The table is optional and its default is `true`. Set it back to `true`, quit the
-app and launch normally to restore sandboxing. Existing `streamdeck-wine` launches
+Both preferences are optional: `renderer_sandbox` defaults to `true`,
+`software_rendering` to `false`. Set sandboxing back to `true`, quit the app and
+launch normally to restore it. Software rendering is independent and adds only
+`--disable-gpu`, preserving unrelated existing Chromium flags. A per-launch
+`--software-webview` option is also available. Existing `streamdeck-wine` launches
 remain independent of this DeckBridge-only preference. The helper does not
 enable remote debugging. It preserves unrelated environment/Wine fixes and
 rejects an external `--no-sandbox` override when sandboxed mode was requested.
@@ -62,11 +80,14 @@ rejects an external `--no-sandbox` override when sandboxed mode was requested.
 Disabling the renderer sandbox removes an isolation layer for HTML plugin pages
 inside that app; those pages run with the user's account permissions. A one-off
 diagnostic authorization is not permission to enable that mode for daily use.
-The audited workstation currently retains the normal sandboxed preference.
+After the concluded one-off test, the user separately authorized daily use via
+`deckbridge streamdeck`. The audited workstation now has the two preferences
+shown above enabled. Future starts must use that command to apply them.
 
 The relevant settings are in the **original main Auto Detection or Manual
 Detection action**. The dynamically generated +/- child actions do not each
 implement their own property-inspector settings UI in this plugin build.
 
 References: [Qt sandbox controls](https://doc.qt.io/qt-6/qtwebengine-platform-notes.html#sandboxing-support),
-[Qt debugging controls and sandbox risk](https://doc.qt.io/qt-6/qtwebengine-debugging.html).
+[Qt debugging controls and sandbox risk](https://doc.qt.io/qt-6/qtwebengine-debugging.html),
+[Qt WebEngine graphics/software rendering](https://doc.qt.io/qt-6.10/qtwebengine-features.html).

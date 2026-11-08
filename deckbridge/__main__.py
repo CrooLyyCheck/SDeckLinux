@@ -21,7 +21,11 @@ async def main(args: argparse.Namespace) -> dict | None:
     if args.command == "streamdeck":
         from .compat.sdeck.webview.launcher import launch
 
-        launch(load(default_config()), no_sandbox=args.no_webview_sandbox)
+        launch(
+            load(default_config()),
+            no_sandbox=args.no_webview_sandbox,
+            software=args.software_webview,
+        )
         return None  # execve replaces this process; no detached duplicate is started.
     if args.command == "volume-controller":
         from .compat.plugins.volume_controller.settings import set_display
@@ -75,12 +79,16 @@ def entrypoint() -> int:
     sub.add_parser("serve").add_argument("--config", type=Path, default=default_config())
     for command in ("diagnose", "capabilities"):
         sub.add_parser(command)
-    sub.add_parser(
-        "streamdeck", help="Use the existing original Stream Deck launcher"
-    ).add_argument(
+    streamdeck = sub.add_parser("streamdeck", help="Use the existing original Stream Deck launcher")
+    streamdeck.add_argument(
         "--no-webview-sandbox",
         action="store_true",
         help="Explicitly disable this app's WebEngine renderer sandbox for this launch",
+    )
+    streamdeck.add_argument(
+        "--software-webview",
+        action="store_true",
+        help="Use Chromium software rendering for this app's embedded web views",
     )
     volume_controller = sub.add_parser("volume-controller").add_subparsers(
         dest="vc_command", required=True

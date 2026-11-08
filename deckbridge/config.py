@@ -54,6 +54,7 @@ class Config:
     volume_controller_display: str = "icons"
     volume_controller_hide_events: bool = True
     streamdeck_webview_sandbox: bool = True
+    streamdeck_webview_software: bool = False
 
 
 def absolute(value: object) -> Path:
@@ -121,10 +122,11 @@ def load(path: Path) -> Config:
     if not isinstance(sdeck, dict) or set(sdeck) - {"webview"}:
         raise BridgeError("invalid_webview_config")
     webview = sdeck.get("webview", {})
-    if not isinstance(webview, dict) or set(webview) - {"renderer_sandbox"}:
+    if not isinstance(webview, dict) or set(webview) - {"renderer_sandbox", "software_rendering"}:
         raise BridgeError("invalid_webview_config")
     webview_sandbox = webview.get("renderer_sandbox", True)
-    if type(webview_sandbox) is not bool:
+    webview_software = webview.get("software_rendering", False)
+    if type(webview_sandbox) is not bool or type(webview_software) is not bool:
         raise BridgeError("invalid_webview_config")
     enabled = audio.get("enabled", False)
     write, adapter_enabled = audio.get("allow_write", False), adapter.get("enabled", False)
@@ -157,4 +159,5 @@ def load(path: Path) -> Config:
         display,
         hide_events,
         webview_sandbox,
+        webview_software,
     )

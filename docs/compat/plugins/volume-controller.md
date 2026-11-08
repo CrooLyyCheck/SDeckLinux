@@ -113,11 +113,11 @@ about 30 seconds), without restarting Stream Deck or replaying actions.
 - Input/device-specific addon actions retain Wine behavior. Generic Core Audio,
   manual actions, hardware mute and other models/dials need separate acceptance.
 - Inspector UI: the original 1–25 Step Size slider rendered during a separately
-  authorized one-off WebEngine sandbox comparison. Normal launch was restored
-  and reproduced the blank controls. The optional process-local launch mode is
-  installed but remains disabled pending a daily-use decision. See
-  [the exact boundary](../sdeck/webview.md). This is not an Audio Router issue or
-  a vendor inspector patch.
+  authorized WebEngine comparison, but the native window remained blank until
+  software rendering was added. The user then confirmed the actual panel.
+  Daily use of the renderer mode was separately approved; both settings apply
+  through `deckbridge streamdeck`. See [the exact boundary](../sdeck/webview.md).
+  This is not an Audio Router issue or a vendor inspector patch.
 
 See [TESTING](../../TESTING.md) for opt-in commands and
 [ADR 0002](../../adr/0002-volume-controller-service-adapter.md) for the design.

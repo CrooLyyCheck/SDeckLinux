@@ -2,6 +2,13 @@
 
 Status: implemented, disabled by default, 2026-11-08.
 
+Follow-up: the user separately approved daily use. Renderer execution alone did
+not establish visibility in the native app: the supplied window screenshot
+still showed a blank inspector. A process-local `--disable-gpu` comparison made
+the panel visible and was confirmed by the user. The independent
+`software_rendering` preference now supplies that flag, defaulting to false.
+Only the audited host enables both preferences; repository defaults stay safe.
+
 The original plugin's controls existed in its readable inspector assets, but
 normal Wine WebEngine renderers did not respond to document commands. Audio
 integration was independently functional. A separately authorized one-off
@@ -28,7 +35,7 @@ default/opt-in environment isolation, original-launcher delegation and existing
 instance refusal without executing Wine or altering audio.
 
 Tradeoff: this is a documented compatibility mode with reduced renderer
-isolation, not a transparent security-preserving fix. Daily use needs a separate
-user decision; the initial authorization covered only the concluded comparison.
-Until that decision, normal launch and its known UI limitation remain active.
+isolation, not a transparent security-preserving fix. Daily use required and
+received a separate user decision after the initial one-off comparison. GPU
+composition was a second boundary; software rendering is an independent switch.
 The original independently working Wine launcher remains available.

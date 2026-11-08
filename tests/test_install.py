@@ -205,9 +205,8 @@ class InstallTests(unittest.TestCase):
         (base / "managed-files.json").write_text(json.dumps({str(desktop): digest(original)}))
         return desktop, original, wrapper
 
-    def test_menu_start_gets_selected_mode_without_private_config_editing(self):
+    def test_standard_install_menu_start_gets_builtin_fixes_without_mode_flags(self):
         desktop, _, _ = self.menu_fixture()
-        self.args.webview_mode = "compatible"
         install(self.args)
         cfg = load(self.config / "deckbridge/config.toml")
         self.assertFalse(cfg.streamdeck_webview_sandbox)
@@ -321,6 +320,7 @@ class InstallTests(unittest.TestCase):
 
     def test_webview_mode_change_preserves_audio_and_keeps_verified_private_backup(self):
         self.menu_fixture()
+        self.args.webview_mode = "sandboxed"
         install(self.args)
         path = self.config / "deckbridge/config.toml"
         extra = (
@@ -340,6 +340,29 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
         self.args.webview_mode = "sandboxed"
         install(self.args)
+        self.assertTrue(load(path).streamdeck_webview_sandbox)
+        self.assertFalse(load(path).streamdeck_webview_software)
+
+    def test_ordinary_update_applies_builtin_defaults_to_old_config_without_rewriting_it(self):
+        self.menu_fixture()
+        install(self.args)
+        path = self.config / "deckbridge/config.toml"
+        old = path.read_bytes().split(b"[compat.sdeck.webview]\n")[0]
+        path.write_bytes(old)
+        install(self.args)
+        self.assertEqual(path.read_bytes(), old)
+        self.assertFalse(load(path).streamdeck_webview_sandbox)
+        self.assertTrue(load(path).streamdeck_webview_software)
+
+    def test_ordinary_update_preserves_explicit_sandbox_preference(self):
+        self.menu_fixture()
+        self.args.webview_mode = "sandboxed"
+        install(self.args)
+        path = self.config / "deckbridge/config.toml"
+        before = path.read_bytes()
+        self.args.webview_mode = None
+        install(self.args)
+        self.assertEqual(path.read_bytes(), before)
         self.assertTrue(load(path).streamdeck_webview_sandbox)
         self.assertFalse(load(path).streamdeck_webview_software)
 

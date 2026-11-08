@@ -1,7 +1,7 @@
 """Launch through the existing audited installer with process-local preferences.
 
-Renderer sandboxing stays enabled by default. Disabling it requires a deliberate
-local preference or command-line flag; no registry, vendor or old launcher edits.
+The built-in Wine mode uses software rendering without the renderer sandbox.
+Explicit local preferences can override it; no registry or vendor edits.
 """
 
 from __future__ import annotations

@@ -92,7 +92,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | --- | --- |
 | `deckbridge.uri` | Shared URI/HTTP URL validation |
 | `deckbridge.compat.sdeck.oauth` | Stream Deck URI validation, KDE ingress repair, exact-instance forwarding and scoped portal integration |
-| `deckbridge.compat.sdeck.webview` | Default-sandboxed launch delegation with explicit renderer-isolation and independent software-rendering options |
+| `deckbridge.compat.sdeck.webview` | Built-in Wine launch defaults (software rendering, renderer sandbox off), with explicit local overrides |
 | `deckbridge.compat.sdeck.webview.desktop` / `preferences` | Versioned installer menu ownership/restore plan and explicit WebEngine preference editing |
 | `deckbridge.config` | Private v1 TOML, exact Wine paths, individually enabled mappings |
 | `deckbridge.protocol` | Bounded typed request envelope and fixed error codes |
@@ -104,7 +104,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.backends.desktop` | Bounded native named-icon lookup/rendering using existing system GI packages |
 | `deckbridge.compat.plugins.volume_controller` | Observed vendor contract, process authentication, RPC and notifications |
 | `tools/install.py` | Hash-tracked user integration and scoped MIME restoration |
-| `install.sh` / `tools/setup.py` | Guided KDE/terminal choice, existing-install detection and automatic application of preferences/menu integration |
+| `make install` / `tools/setup.py` | Standard installation: existing-install detection, dependencies and automatic menu integration; no separate repair workflow |
 | `tools/smoke.py` | Explicit real-host observations, excluded from `make check` |
 | `tools/audio_smoke.py` | Opt-in silent null-sink fixture and separately authorized audio checks |
 | `tools/prepare_runtime.py` | Hash-verified portable dependency preparation for the installer |

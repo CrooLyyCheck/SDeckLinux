@@ -1,6 +1,20 @@
 # ADR 0003: explicit, process-local WebEngine launch mode
 
-Status: implemented, disabled by default, 2026-11-08.
+Status: implemented; default policy updated on 2026-11-08.
+
+## Built-in default follow-up
+
+The user requested that the accepted Wine startup fixes be built in, with no
+separate repair step or mode picker. Runtime/config-loader defaults now use
+software rendering with the renderer sandbox disabled; fresh installation writes
+the same defaults. Ordinary updates apply them to older configurations with no
+WebEngine keys and preserve explicit overrides. Standard installation also wires
+the menu to this launch path. Renderer isolation remains a documented tradeoff,
+scoped to Stream Deck; a sandboxed override remains available.
+
+## Original decision (historical)
+
+At the initial milestone this mode was disabled by default.
 
 Follow-up: the user separately approved daily use. Renderer execution alone did
 not establish visibility in the native app: the supplied window screenshot

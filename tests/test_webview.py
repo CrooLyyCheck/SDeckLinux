@@ -36,7 +36,7 @@ renderer_sandbox=true
         self.assertNotIn("QTWEBENGINE_DISABLE_SANDBOX", software)
         self.assertEqual(launch_environment(True, software, software=True), software)
 
-    def test_sandbox_default_and_opt_in_are_child_environment_only(self):
+    def test_sandbox_choice_and_compatibility_mode_are_child_environment_only(self):
         original = {
             "DISPLAY": ":example",
             "WINE_FIX": "preserve",
@@ -76,16 +76,16 @@ renderer_sandbox=true
                 patch("os.execve") as execute,
             ):
                 launch(cfg)
-                self.assertNotIn("QTWEBENGINE_DISABLE_SANDBOX", execute.call_args.args[2])
-                launch(
-                    dataclasses.replace(
-                        cfg, streamdeck_webview_sandbox=False, streamdeck_webview_software=True
-                    )
-                )
                 self.assertEqual(execute.call_args.args[2]["QTWEBENGINE_DISABLE_SANDBOX"], "1")
                 self.assertIn(
                     "--disable-gpu", execute.call_args.args[2]["QTWEBENGINE_CHROMIUM_FLAGS"]
                 )
+                launch(
+                    dataclasses.replace(
+                        cfg, streamdeck_webview_sandbox=True, streamdeck_webview_software=False
+                    )
+                )
+                self.assertNotIn("QTWEBENGINE_DISABLE_SANDBOX", execute.call_args.args[2])
                 self.assertEqual(execute.call_args.args[:2], (wrapper, [str(wrapper)]))
                 instances.return_value = [123]
                 with self.assertRaisesRegex(BridgeError, "instance_already_running"):
@@ -105,13 +105,13 @@ renderer_sandbox=true
             )
             path.write_text(body)
             path.chmod(0o600)
-            self.assertTrue(load(path).streamdeck_webview_sandbox)
-            self.assertFalse(load(path).streamdeck_webview_software)
-            path.write_text(
-                body + "[compat.sdeck.webview]\nrenderer_sandbox=false\nsoftware_rendering=true\n"
-            )
             self.assertFalse(load(path).streamdeck_webview_sandbox)
             self.assertTrue(load(path).streamdeck_webview_software)
+            path.write_text(
+                body + "[compat.sdeck.webview]\nrenderer_sandbox=true\nsoftware_rendering=false\n"
+            )
+            self.assertTrue(load(path).streamdeck_webview_sandbox)
+            self.assertFalse(load(path).streamdeck_webview_software)
             path.write_text(body + '[compat.sdeck.webview]\nrenderer_sandbox="false"\n')
             with self.assertRaisesRegex(BridgeError, "invalid_webview_config"):
                 load(path)

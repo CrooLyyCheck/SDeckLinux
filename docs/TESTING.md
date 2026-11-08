@@ -171,11 +171,12 @@ renderer startup worked but the native widget was still blank. Adding only
 Chromium software rendering (`--disable-gpu`) made it visible and the user
 confirmed it. A CDP screenshot alone must not be treated as native-widget acceptance.
 
-`make check` does not run Wine or this comparison. `deckbridge streamdeck`
-keeps sandboxing by default and delegates to the original audited launcher.
-Its explicit `--no-webview-sandbox` launch flag or optional host preference is a
-security-relevant user choice, not a default test setting. Quit a running
-instance before changing its launch environment. See the
+`make check` does not run Wine or this comparison. Everyday `deckbridge streamdeck`
+now uses the built-in Wine mode: software rendering with the renderer sandbox off.
+For an explicitly sandboxed control, use the documented sandboxed override rather
+than assuming a normal launch restores the historical defaults. Quit a running
+instance before changing its environment and restore the previous preferences
+after a controlled comparison. See the
 [exact scope and result](compat/sdeck/webview.md).
 
 A delayed human Quit must be observed using the exact main PID/start identity;

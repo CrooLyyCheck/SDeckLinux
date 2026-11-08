@@ -15,13 +15,16 @@ Start with an existing official Stream Deck installation under the supported
 extract it, open a terminal in the extracted folder, and run:
 
 ```bash
-bash install.sh
+make install
 ```
 
-The setup window offers **Install with plugin settings fix**, explains its
-renderer isolation tradeoff, and applies the selected settings and menu icon
-automatically. After installation, quit any running Stream Deck and reopen
-**Stream Deck (Wine)** from your application menu.
+The normal installation includes the Wine startup fixes and menu integration.
+After installation, quit any running Stream Deck and reopen **Stream Deck (Wine)**
+from your application menu. No separate repair step or mode selection is needed.
+
+The built-in Wine mode uses software rendering with the WebEngine renderer
+sandbox disabled. Explicit preferences can override these defaults; see the
+[startup mode details](docs/compat/sdeck/webview.md).
 
 See [requirements and setup details](docs/USAGE.md) for prerequisites and other options.
 

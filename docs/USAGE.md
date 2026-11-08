@@ -1,27 +1,27 @@
 # Usage
 
-## Guided setup
+## Standard installation
 
-For an existing installation using the supported `streamdeck-wine` layout, run
-`bash install.sh` from this repository. KDE shows a setup window; a terminal
-choice is available when KDialog is absent. Python >= 3.11 and `make` must already
-be installed. The helper prepares the isolated, hash-pinned dependencies.
+Run `make install` from this repository for the supported existing
+`streamdeck-wine` installation. This is the normal install/update operation: it
+prepares the isolated, hash-pinned dependencies and installs all host integration.
+Python >= 3.11 and `make` must already be installed. `bash install.sh` is an alias
+for the same installation flow, not an additional repair step.
 
-Choose **Install with plugin settings fix** to apply the tested WebEngine mode
-and menu handoff automatically. This mode uses software rendering and disables
-the renderer sandbox only for Stream Deck, reducing isolation of plugin pages.
-The installer explains this before applying changes. **Install with sandbox**
-retains renderer isolation, with potentially blank plugin panels on the tested
-Wine setup. **Cancel** makes no changes.
+Wine startup compatibility is built into DeckBridge's default behavior. Software
+rendering is on and the WebEngine renderer sandbox is off for Stream Deck's
+plugin pages. This reduces renderer isolation inside the app. No mode picker,
+extra fix command or private TOML editing is required. Explicit existing
+preferences are preserved; advanced overrides are documented below.
 
-Both modes wire the ordinary **Stream Deck (Wine)** menu icon to the saved
-DeckBridge preferences. No private TOML editing or separate local launcher patch
-is required. Quit an already running app, then reopen it from the menu. The helper
-does not enable autostart, install system packages or download Elgato software.
+The ordinary **Stream Deck (Wine)** menu icon uses DeckBridge automatically. Quit
+an already running app after installation, then reopen it from the menu. The
+installer does not enable autostart, install system packages or download Elgato
+software.
 
 The original menu entry is backed up, hash tracked and restored on deactivation.
-Existing custom entries are preserved: setup stops rather than overwriting them.
-Advanced users can use `--no-menu` below to leave a custom shortcut alone.
+Existing custom entries are preserved: installation stops rather than overwriting
+them. Advanced users can use `--no-menu` below to leave a custom shortcut alone.
 
 ## Requirements and scope
 
@@ -59,8 +59,8 @@ Supply the prefix you actually audited. This is the tested installer's layout,
 not a universal default:
 
 ```bash
-python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --webview-mode compatible
-python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --webview-mode compatible --apply
+python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix"
+python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --apply
 deckbridge diagnose
 deckbridge capabilities
 ```
@@ -75,21 +75,22 @@ The previous MIME key and a private full-file backup are kept in
 `$XDG_STATE_HOME/deckbridge`. Unowned or modified managed files block updates.
 Updating restarts the daemon; do this outside an ongoing OAuth flow.
 
-`--webview-mode compatible` explicitly selects software rendering with the
-renderer sandbox disabled; `--webview-mode sandboxed` restores sandboxing and
-automatic GPU selection. Omitting this option preserves existing preferences;
-new configurations retain sandboxed defaults. Existing unrelated settings are
-preserved and changes keep a verified private backup.
+The built-in default is software rendering with the renderer sandbox disabled.
+Omitting `--webview-mode` uses these defaults for fresh/older configurations and
+preserves explicit existing preferences. `--webview-mode sandboxed` is an optional
+override that restores sandboxing and automatic GPU selection;
+`--webview-mode compatible` resets an explicit override to the built-in mode.
+Unrelated settings are preserved, and explicit changes keep a private backup.
 
 The installer automatically hands over the known installer's unmodified menu
 entry, retaining its name and icon. The original Wine launcher and its ownership
 manifest remain intact. `--no-menu` leaves an unmanaged menu alone, or restores
 an entry previously managed by DeckBridge. Unknown prefix layouts do not receive
-automatic menu integration; guided setup requires the recognized layout.
+automatic menu integration; standard installation requires the recognized layout.
 
 Before regenerating menu entries with the separate original Wine installer,
 restore the entry using `--no-menu --apply` (with the same `--prefix`) or deactivate
-DeckBridge, then rerun guided setup afterwards. Ownership checks preserve an
+DeckBridge, then rerun standard installation afterwards. Ownership checks preserve an
 entry managed by the other installer instead of silently overwriting it.
 
 For callback forwarding, the original application must already be running in
@@ -190,12 +191,9 @@ process-local WebEngine options for renderer startup and software composition.
 See the [WebEngine compatibility notes](compat/sdeck/webview.md) for the exact
 scope and known limits.
 
-`deckbridge streamdeck` delegates to the existing installer launcher and keeps
-the sandbox enabled by default. The optional `--no-webview-sandbox` flag or
-`[compat.sdeck.webview] renderer_sandbox = false` changes only that app's child
-environment. It reduces renderer isolation and requires a deliberate user
-choice. `software_rendering = true` (or `--software-webview`) independently adds
-`--disable-gpu`. These are the two preferences used by the accepted configuration:
+`deckbridge streamdeck` delegates to the existing installer launcher. Its
+built-in defaults apply automatically, including to older configurations that
+omit the WebEngine section:
 
 ```toml
 [compat.sdeck.webview]
@@ -203,15 +201,15 @@ renderer_sandbox = false
 software_rendering = true
 ```
 
-**Disabling the renderer sandbox removes an isolation layer for HTML plugin
-pages; they run with your account's permissions.** Repository defaults keep
-`renderer_sandbox = true` and `software_rendering = false`. Enable the workaround
-only if you accept that tradeoff. Start with **`deckbridge streamdeck`** to apply
-these preferences. Quit an existing instance before changing modes; the original
-direct launcher remains independent. The installed menu applies these preferences
-automatically. No remote debugger is enabled. Settings belong to
-the main Auto/Manual Detection action; generated +/- keys do not each have their
-own settings panel in this plugin build.
+**The built-in mode removes a renderer isolation layer for HTML plugin pages;
+they run with your account's permissions.** To opt out, set
+`renderer_sandbox = true` and `software_rendering = false`, or use the manual installer's
+`--webview-mode sandboxed` option. Explicit settings survive ordinary updates.
+
+The menu icon already uses the same launch path. The direct `streamdeck-wine`
+command remains independent. Quit an existing app before changing modes. Remote
+debugging is not enabled. Settings belong to the main Auto/Manual Detection
+action; generated +/- keys do not each have their own panel in this plugin build.
 
 ## Disable or remove integration
 

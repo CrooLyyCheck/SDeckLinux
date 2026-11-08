@@ -1,7 +1,10 @@
 PYTHON ?= python3
 DEV_PYTHON = .venv/bin/python
 
-.PHONY: setup check format
+.PHONY: install setup check format
+install:
+	$(PYTHON) tools/setup.py
+
 setup:
 	$(PYTHON) -m venv .venv
 	$(DEV_PYTHON) -m pip install --require-hashes --only-binary=:all: -r requirements-dev.txt

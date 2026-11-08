@@ -17,35 +17,37 @@ the isolated native fixture. Hardware mute, manual actions, dials and other devi
 models remain untested. New bridge-native GUI actions and Wayland input remain
 separate roadmap gates. No generic Windows Core Audio translation is claimed.
 
-## Automatic menu setup
+## Built-in Wine startup and menu integration
 
 The user confirmed the original panel became visible after restarting from the
-ordinary menu through the local installer fix. The original problem was a menu
-entry that bypassed the saved DeckBridge renderer preferences; the accepted
-process had both required flags and no remote debugger.
+ordinary menu through DeckBridge. The original fault was a menu entry bypassing
+its renderer settings. The accepted process had both required flags and no remote
+debugger.
 
-That integration now lives in SDeckLinux itself. `install.sh` offers a KDE or
-terminal mode choice, discovers the existing owned Wine installation and applies
-the selected WebEngine preferences plus menu handoff. The compatibility choice
-explains reduced renderer isolation before installation; the sandboxed choice
-and cancellation are separate paths. No local patch to the Wine launcher is
-required. Original menu bytes/mode and configuration changes have verified private
-backups. Updates and deactivation preserve user replacements.
+The fixes are now runtime defaults and part of ordinary installation/update:
+software rendering on, renderer sandbox off. Fresh config templates include both
+settings; older config files without this section inherit them without rewriting
+unrelated preferences. Explicit opt-outs remain respected. `make install`
+detects the existing Wine app and installs dependencies, runtime and menu handoff
+in one flow. The earlier separate mode-selection dialog has been removed.
 
-Hardware-free acceptance includes a fresh install followed by actual execution
-of its generated menu command: the installed CLI reaches a fixture launcher with
-the selected process environment. Reinstall, interrupted-menu recovery, config
-preservation, custom-entry rejection and menu restoration are covered. UI choice
-routing is tested with a mocked KDialog, not a new manual wizard session. No
-audio mutation or new OAuth flow is part of this change.
+Hardware-free acceptance executes the generated menu from a fresh ordinary
+installation, with no mode flag or config editing, and observes both flags at a
+fixture launcher. Tests also cover older config migration, explicit opt-out
+preservation, custom entries, reinstall and menu restoration. Current suite:
+**92 hardware-free tests**. No audio mutation or new OAuth flow is involved.
 
-The updated repository installer was applied on the audited workstation with the
-already accepted compatibility mode. The menu handoff and all installed module
-hashes match their ownership records; the previous menu matches the Wine
-installer's saved hash. Private configuration remained byte-identical, including
-audio preferences. The existing original app kept both renderer settings and no
-remote debugger. Safe evidence: `guided-menu-install.json`. Current suite:
-**90 hardware-free tests**.
+The prior installer was already applied on the audited workstation; its private
+configuration remained byte-identical, including audio preferences. Safe evidence
+is private in `guided-menu-install.json`. The unchanged menu integration and
+previously accepted native-panel result remain separate from the automated
+fixture coverage. No new physical interaction is inferred from test exit status.
+
+The standard `make install` flow was subsequently run without a mode flag or
+interaction. It completed menu/runtime integration, kept private configuration
+byte-identical and left the audio backend ready with one original plugin client
+connected. Installed module hashes match ownership records. Safe evidence is
+private in `builtin-startup-install.json`.
 
 ## Follow-up: system volume, icons and property inspectors
 
@@ -88,8 +90,8 @@ cleanup tracked the exact main PID, waited for its helpers and verified the
 normal returned process. No test mode remains active.
 
 An optional launch route is installed in `compat/sdeck/webview/`:
-`deckbridge streamdeck` delegates to the original audited launcher. Repository
-defaults retain sandboxing and automatic GPU selection. The user separately
+`deckbridge streamdeck` delegates to the original audited launcher. At that milestone, repository
+defaults retained sandboxing and automatic GPU selection. The user separately
 approved daily use with `renderer_sandbox = false` for this route. A subsequent
 native-window screenshot still showed the correct main Auto action selected
 with a blank inspector, despite healthy renderers. The earlier CDP screenshot

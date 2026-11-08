@@ -38,44 +38,16 @@ separate daily-use consent, plus Chromium software rendering. No Qt Quick,
 global GPU, security or vendor-file setting was changed. Remote debugging is off.
 Evidence is private in `webview-composition-smoke.json`.
 
-## Automatic setup and menu launch
+## Built-in startup compatibility
 
-`bash install.sh` opens the guided installer for the recognized existing Wine
-installation. Choosing the plugin-settings fix stores the two preferences below
-and wires the ordinary Stream Deck menu icon to `deckbridge streamdeck`. The
-dialog explains the renderer isolation tradeoff; choosing sandboxed mode keeps
-isolation instead. The manual installer accepts the same explicit choice through
-`--webview-mode compatible|sandboxed`.
+The normal `make install` operation installs the menu integration and the built-in
+Wine startup behavior. Software rendering is enabled and the WebEngine renderer
+sandbox is disabled for Stream Deck. There is no separate repair installer or
+mode-selection dialog. `bash install.sh` runs the same installation flow.
 
-Menu handoff is part of the repository installer. It does not depend on a patched
-`streamdeck-wine` script. The original menu bytes/mode and their ownership are
-retained privately, and deactivation restores an unchanged managed menu. Modified
-or unowned menu entries are preserved. `--no-menu` opts out or restores the menu.
-No autostart entry is enabled and no vendor/prefix file is edited.
-
-## Explicit launch option
-
-The default remains sandboxed:
-
-```bash
-deckbridge streamdeck
-```
-
-The command uses the existing user-owned `streamdeck-wine` launcher, retaining
-its Wine fixes and foreground lifetime. It verifies the configured audited
-prefix and ownership marker; other installer layouts fail visibly. Quit an
-existing instance first. The command refuses to silently change the environment
-of a running app. It does not edit the original launcher, prefix, registry,
-plugins, desktop entries or system environment.
-
-Only after explicitly accepting the renderer isolation tradeoff, a launch can use:
-
-```bash
-deckbridge streamdeck --no-webview-sandbox --software-webview
-```
-
-Alternatively a deliberate private host preference makes that mode apply when
-using `deckbridge streamdeck`:
+These defaults belong to the runtime configuration model as well as the fresh
+configuration template. Older configurations that omit the WebEngine section
+inherit them automatically on update. Explicit preferences are preserved.
 
 ```toml
 [compat.sdeck.webview]
@@ -83,21 +55,27 @@ renderer_sandbox = false
 software_rendering = true
 ```
 
-Both preferences are optional: `renderer_sandbox` defaults to `true`,
-`software_rendering` to `false`. Set sandboxing back to `true`, quit the app and
-launch normally to restore it. Software rendering is independent and adds only
-`--disable-gpu`, preserving unrelated existing Chromium flags. A per-launch
-`--software-webview` option is also available. Existing `streamdeck-wine` launches
-remain independent of this DeckBridge-only preference. The helper does not
-enable remote debugging. It preserves unrelated environment/Wine fixes and
-rejects an external `--no-sandbox` override when sandboxed mode was requested.
+The renderer isolation tradeoff is part of this built-in Wine mode: HTML plugin
+pages run with the user's account permissions. To opt out, set
+`renderer_sandbox = true` and `software_rendering = false`, or use
+`tools/install.py --webview-mode sandboxed` with the usual prefix/apply options.
+The two preferences remain independently configurable. Software rendering adds
+`--disable-gpu` while preserving unrelated Chromium flags. No remote debugger is
+enabled and no global security or GPU preference is changed.
 
-Disabling the renderer sandbox removes an isolation layer for HTML plugin pages
-inside that app; those pages run with the user's account permissions. A one-off
-diagnostic authorization is not permission to enable that mode for daily use.
-After the concluded one-off test, the user separately authorized daily use via
-`deckbridge streamdeck`. The audited workstation now has the two preferences
-shown above enabled. Future starts through that command or the managed menu apply them.
+## Menu and original launcher
+
+The normal install hands the existing menu icon to `deckbridge streamdeck`.
+Original menu bytes/mode are saved privately and restored on deactivation if the
+entry is still managed. Modified or unowned entries are preserved. `--no-menu`
+opts out or restores the menu. No autostart entry is enabled and no vendor/prefix
+file is edited.
+
+The launch helper uses the existing user-owned `streamdeck-wine` command,
+retaining its Wine fixes. It validates the exact prefix and ownership marker;
+unsupported layouts fail visibly. A local patch to that original command is not
+required. Direct `streamdeck-wine` launches remain independent. Quit a running
+instance before switching modes; the helper refuses duplicate instances.
 
 The relevant settings are in the **original main Auto Detection or Manual
 Detection action**. The dynamically generated +/- child actions do not each

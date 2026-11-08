@@ -299,6 +299,9 @@ command = "/usr/bin/wine"
 deep_links = true
 [applications]
 [urls]
+[compat.sdeck.webview]
+renderer_sandbox = false
+software_rendering = true
 """
     config_content = config_original if config_original is not None else cfg.encode()
     mode = getattr(args, "webview_mode", None)

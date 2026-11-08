@@ -1,7 +1,7 @@
 [project]
 name = "deckbridge"
 version = "0.1.0"
-description = "Local Linux capabilities for the original Stream Deck under Wine"
+description = "SDeckLinux compatibility layer for the original Stream Deck under Wine"
 requires-python = ">=3.11"
 
 [tool.ruff]

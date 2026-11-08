@@ -179,8 +179,9 @@ data are committed.
 The physical evidence's longer comparison window also observed a default sink
 volume change from 64% to 69%; the source was not attributed. Do not claim global
 volume stayed constant across the entire interactive session. The immediate CLI
-test did preserve sink state. The adapter has no global mutation path and no
-attempt was made to restore desktop changes. A later external link to the test
+test did preserve sink state. At that milestone the adapter had no global mutation
+path; the later opt-in System setter is documented above. No attempt was made to
+restore desktop changes. A later external link to the test
 sink monitor made the strict fixture-isolation check stop another test before
 mutation. The helper was corrected to compare sink state around each exercise,
 rather than treating the fixture's entire lifetime as an exclusive test window.
@@ -220,7 +221,7 @@ Folder ownership:
 - `tools/audio_smoke.py`, `tests/test_audio.py`, `tests/test_volume_*.py`: explicit
   host fixture and hardware-free contract/transport regression coverage.
 
-One exact-prefix original instance remains active (PID 58761 in this session),
+At the local acceptance snapshot, one exact-prefix original instance was active,
 with the original Volume Controller Node client connected. Do not infer physical
 Linux OK/native-GUI acceptance from the Volume Controller test. OAuth was not
 repeated; its previous acceptance and a fresh synthetic transport regression are
@@ -240,9 +241,13 @@ The previously observed inotify instance exhaustion was not repaired with global
 sysctl changes. Synthetic receipt tests use bounded 100 ms log sampling. No root,
 new DLL overrides, global Wine/KDE/security changes or external CI were added.
 
-Local branch: `codex/initial-bridge`. Work is committed locally in thematic
-changes after checks; no remote, push or PR. Command-local verified public noreply
-Git identity is used; no global Git configuration is changed.
+The source project is named **SDeckLinux**. The runtime package, commands,
+configuration paths and service retain the name **DeckBridge** to preserve the
+working installation. The README separates application, basic device-function
+and plugin compatibility. Source publication excludes the Wine prefix, vendor
+software, private state and test captures. No GitHub Actions or external CI is
+configured. Command-local verified public noreply Git identity is used; no global
+Git configuration is changed.
 
 Resume commands:
 

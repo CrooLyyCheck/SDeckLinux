@@ -95,8 +95,9 @@ about 30 seconds), without restarting Stream Deck or replaying actions.
 - CLI: 25%, mute and restoration observed on the silent fixture. The immediate
   CLI window preserved sink volumes/default devices.
 - A longer fixture-lifetime comparison observed a system sink change from 64%
-  to 69%; its source was not attributed. No global setter exists in the adapter,
-  and no attempt was made to overwrite desktop changes. Do not claim the whole
+  to 69%; its source was not attributed. At that milestone no global setter
+  existed in the adapter; the later System setter has its own opt-in gate.
+  No attempt was made to overwrite desktop changes. Do not claim the whole
   interactive window preserved global volume.
 - Initial unlinked `pacat` fixture timed out and disappeared from the dynamic
   profile. Replaced with a silent stream into an owned low-priority null sink;

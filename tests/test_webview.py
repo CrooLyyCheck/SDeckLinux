@@ -6,12 +6,24 @@ from pathlib import Path
 from unittest.mock import patch
 
 from deckbridge.compat.sdeck.webview.launcher import launch, launch_environment
+from deckbridge.compat.sdeck.webview.preferences import with_mode
 from deckbridge.config import load
 from deckbridge.protocol import BridgeError
 from tests.test_core import config
 
 
 class WebviewLaunchTests(unittest.TestCase):
+    def test_mode_edit_rejects_a_fake_table_inside_an_application_argument(self):
+        original = b'''version=1
+[applications]
+editor=["/usr/bin/editor", """
+[compat.sdeck.webview]
+renderer_sandbox=true
+"""]
+'''
+        with self.assertRaisesRegex(RuntimeError, "Unsupported WebEngine config layout"):
+            with_mode(original, "compatible")
+
     def test_software_rendering_preserves_existing_flags_and_is_independent_of_sandbox(self):
         original = {"QTWEBENGINE_CHROMIUM_FLAGS": '--disable-logging --lang="en-US"'}
         normal = launch_environment(True, original)

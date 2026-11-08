@@ -17,6 +17,36 @@ the isolated native fixture. Hardware mute, manual actions, dials and other devi
 models remain untested. New bridge-native GUI actions and Wayland input remain
 separate roadmap gates. No generic Windows Core Audio translation is claimed.
 
+## Automatic menu setup
+
+The user confirmed the original panel became visible after restarting from the
+ordinary menu through the local installer fix. The original problem was a menu
+entry that bypassed the saved DeckBridge renderer preferences; the accepted
+process had both required flags and no remote debugger.
+
+That integration now lives in SDeckLinux itself. `install.sh` offers a KDE or
+terminal mode choice, discovers the existing owned Wine installation and applies
+the selected WebEngine preferences plus menu handoff. The compatibility choice
+explains reduced renderer isolation before installation; the sandboxed choice
+and cancellation are separate paths. No local patch to the Wine launcher is
+required. Original menu bytes/mode and configuration changes have verified private
+backups. Updates and deactivation preserve user replacements.
+
+Hardware-free acceptance includes a fresh install followed by actual execution
+of its generated menu command: the installed CLI reaches a fixture launcher with
+the selected process environment. Reinstall, interrupted-menu recovery, config
+preservation, custom-entry rejection and menu restoration are covered. UI choice
+routing is tested with a mocked KDialog, not a new manual wizard session. No
+audio mutation or new OAuth flow is part of this change.
+
+The updated repository installer was applied on the audited workstation with the
+already accepted compatibility mode. The menu handoff and all installed module
+hashes match their ownership records; the previous menu matches the Wine
+installer's saved hash. Private configuration remained byte-identical, including
+audio preferences. The existing original app kept both renderer settings and no
+remote debugger. Safe evidence: `guided-menu-install.json`. Current suite:
+**90 hardware-free tests**.
+
 ## Follow-up: system volume, icons and property inspectors
 
 The user confirmed normal per-app control, and requested system control, native

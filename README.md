@@ -8,6 +8,23 @@ with Wine providing the Windows execution environment.
 [Usage and configuration](docs/USAGE.md) · [Architecture](docs/ARCHITECTURE.md) ·
 [Roadmap](docs/ROADMAP.md) · [Testing](docs/TESTING.md)
 
+## Installation
+
+Start with an existing official Stream Deck installation under the supported
+`streamdeck-wine` installer. Download this repository using **Code → Download ZIP**,
+extract it, open a terminal in the extracted folder, and run:
+
+```bash
+bash install.sh
+```
+
+The setup window offers **Install with plugin settings fix**, explains its
+renderer isolation tradeoff, and applies the selected settings and menu icon
+automatically. After installation, quit any running Stream Deck and reopen
+**Stream Deck (Wine)** from your application menu.
+
+See [requirements and setup details](docs/USAGE.md) for prerequisites and other options.
+
 ## Architecture
 
 Compatibility modules implement the interface expected by the application or

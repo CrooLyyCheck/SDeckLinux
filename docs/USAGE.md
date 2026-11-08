@@ -1,11 +1,34 @@
 # Usage
 
+## Guided setup
+
+For an existing installation using the supported `streamdeck-wine` layout, run
+`bash install.sh` from this repository. KDE shows a setup window; a terminal
+choice is available when KDialog is absent. Python >= 3.11 and `make` must already
+be installed. The helper prepares the isolated, hash-pinned dependencies.
+
+Choose **Install with plugin settings fix** to apply the tested WebEngine mode
+and menu handoff automatically. This mode uses software rendering and disables
+the renderer sandbox only for Stream Deck, reducing isolation of plugin pages.
+The installer explains this before applying changes. **Install with sandbox**
+retains renderer isolation, with potentially blank plugin panels on the tested
+Wine setup. **Cancel** makes no changes.
+
+Both modes wire the ordinary **Stream Deck (Wine)** menu icon to the saved
+DeckBridge preferences. No private TOML editing or separate local launcher patch
+is required. Quit an already running app, then reopen it from the menu. The helper
+does not enable autostart, install system packages or download Elgato software.
+
+The original menu entry is backed up, hash tracked and restored on deactivation.
+Existing custom entries are preserved: setup stops rather than overwriting them.
+Advanced users can use `--no-menu` below to leave a custom shortcut alone.
+
 ## Requirements and scope
 
 This repository integrates with an **existing, separately installed official
 Stream Deck application under Wine**. It does not download Elgato software,
 create a fresh Wine prefix or include the original `streamdeck-wine` installer.
-The audited installation used that installer layout. The optional
+The audited installation used that installer layout. The
 `deckbridge streamdeck` launcher requires its owned prefix/launcher; unsupported
 layouts fail explicitly. Bridge installation still requires an explicitly
 selected, audited prefix.
@@ -30,14 +53,14 @@ runs formatting, lint, byte compilation and hardware-free tests. Hardware/input/
 audio mutation tests are separate and opt-in; see [TESTING.md](TESTING.md).
 No GitHub Actions or external CI is configured.
 
-## Install beside an audited installation
+## Manual installation
 
 Supply the prefix you actually audited. This is the tested installer's layout,
 not a universal default:
 
 ```bash
-python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix"
-python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --apply
+python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --webview-mode compatible
+python3 tools/install.py --prefix "$HOME/.local/share/streamdeck-wine/prefix" --webview-mode compatible --apply
 deckbridge diagnose
 deckbridge capabilities
 ```
@@ -51,6 +74,23 @@ installation manifest. Counters, thresholds and browser consent are preserved.
 The previous MIME key and a private full-file backup are kept in
 `$XDG_STATE_HOME/deckbridge`. Unowned or modified managed files block updates.
 Updating restarts the daemon; do this outside an ongoing OAuth flow.
+
+`--webview-mode compatible` explicitly selects software rendering with the
+renderer sandbox disabled; `--webview-mode sandboxed` restores sandboxing and
+automatic GPU selection. Omitting this option preserves existing preferences;
+new configurations retain sandboxed defaults. Existing unrelated settings are
+preserved and changes keep a verified private backup.
+
+The installer automatically hands over the known installer's unmodified menu
+entry, retaining its name and icon. The original Wine launcher and its ownership
+manifest remain intact. `--no-menu` leaves an unmanaged menu alone, or restores
+an entry previously managed by DeckBridge. Unknown prefix layouts do not receive
+automatic menu integration; guided setup requires the recognized layout.
+
+Before regenerating menu entries with the separate original Wine installer,
+restore the entry using `--no-menu --apply` (with the same `--prefix`) or deactivate
+DeckBridge, then rerun guided setup afterwards. Ownership checks preserve an
+entry managed by the other installer instead of silently overwriting it.
 
 For callback forwarding, the original application must already be running in
 the configured prefix. Forwarding requires exactly one instance; it never starts
@@ -168,7 +208,8 @@ pages; they run with your account's permissions.** Repository defaults keep
 `renderer_sandbox = true` and `software_rendering = false`. Enable the workaround
 only if you accept that tradeoff. Start with **`deckbridge streamdeck`** to apply
 these preferences. Quit an existing instance before changing modes; the original
-launcher remains independent. No remote debugger is enabled. Settings belong to
+direct launcher remains independent. The installed menu applies these preferences
+automatically. No remote debugger is enabled. Settings belong to
 the main Auto/Manual Detection action; generated +/- keys do not each have their
 own settings panel in this plugin build.
 
@@ -190,7 +231,7 @@ python3 tools/install.py --deactivate --apply
 ```
 
 This stops/disables the daemon, restores its MIME default key if still selected,
-restores owned portal choices, and removes unchanged owned files.
+restores owned portal choices and its unchanged menu entry, and removes unchanged owned files.
 User-modified files, configuration, backups,
 the Wine prefix and the original Elgato installation remain. A changed MIME
 default chosen by the user is preserved. The original `streamdeck-wine` launcher

@@ -38,6 +38,21 @@ separate daily-use consent, plus Chromium software rendering. No Qt Quick,
 global GPU, security or vendor-file setting was changed. Remote debugging is off.
 Evidence is private in `webview-composition-smoke.json`.
 
+## Automatic setup and menu launch
+
+`bash install.sh` opens the guided installer for the recognized existing Wine
+installation. Choosing the plugin-settings fix stores the two preferences below
+and wires the ordinary Stream Deck menu icon to `deckbridge streamdeck`. The
+dialog explains the renderer isolation tradeoff; choosing sandboxed mode keeps
+isolation instead. The manual installer accepts the same explicit choice through
+`--webview-mode compatible|sandboxed`.
+
+Menu handoff is part of the repository installer. It does not depend on a patched
+`streamdeck-wine` script. The original menu bytes/mode and their ownership are
+retained privately, and deactivation restores an unchanged managed menu. Modified
+or unowned menu entries are preserved. `--no-menu` opts out or restores the menu.
+No autostart entry is enabled and no vendor/prefix file is edited.
+
 ## Explicit launch option
 
 The default remains sandboxed:
@@ -82,7 +97,7 @@ inside that app; those pages run with the user's account permissions. A one-off
 diagnostic authorization is not permission to enable that mode for daily use.
 After the concluded one-off test, the user separately authorized daily use via
 `deckbridge streamdeck`. The audited workstation now has the two preferences
-shown above enabled. Future starts must use that command to apply them.
+shown above enabled. Future starts through that command or the managed menu apply them.
 
 The relevant settings are in the **original main Auto Detection or Manual
 Detection action**. The dynamically generated +/- child actions do not each

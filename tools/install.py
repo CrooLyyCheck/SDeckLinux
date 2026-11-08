@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Idempotent user-only installation alongside the existing Wine installer.
 
-Does not install Stream Deck, edit its prefix, or adopt existing unowned files.
+Does not install Stream Deck or edit its prefix. The recognized installer's menu
+entry can be handed over with a verified backup and restored on deactivation.
 """
 
 from __future__ import annotations
@@ -22,6 +23,8 @@ MIME = "x-scheme-handler/streamdeck"
 sys.path.insert(0, str(ROOT))
 
 from deckbridge.compat.sdeck.oauth import portal  # noqa: E402 - standalone repository tool
+from deckbridge.compat.sdeck.webview import desktop as menu  # noqa: E402
+from deckbridge.compat.sdeck.webview.preferences import with_mode  # noqa: E402
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
 
@@ -94,6 +97,40 @@ def run(argv: list[str]) -> None:
     subprocess.run(argv, check=True, timeout=15)  # noqa: S603 - fixed tools/arguments
 
 
+def private_backup(state: Path, kind: str, content: bytes) -> None:
+    path = state / "backups" / (kind + "-" + digest(content))
+    if path.is_symlink() or (path.exists() and path.read_bytes() != content):
+        raise RuntimeError("Existing integration backup is modified; preserving it")
+    if not path.exists():
+        atomic(path, content)
+    if path.read_bytes() != content:
+        raise RuntimeError("Integration backup verification failed")
+
+
+def apply_menu(plan: menu.MenuPlan, manifest: dict, state: Path) -> None:
+    if menu.read_owned(plan.path) != plan.before:
+        raise RuntimeError("Menu entry changed during installation; preserving it")
+    if plan.record is not None:
+        original, _ = menu.previous(plan.record)
+        if original is not None:
+            private_backup(state, "streamdeck-menu", original)
+        manifest["menu_entry"] = plan.record
+        atomic(state / "install.json", json.dumps(manifest, indent=2).encode())
+    if plan.content is None:
+        plan.path.unlink(missing_ok=True)
+    else:
+        atomic(plan.path, plan.content, plan.mode)
+    if plan.record is None:
+        manifest.pop("menu_entry", None)
+        atomic(state / "install.json", json.dumps(manifest, indent=2).encode())
+
+
+def refresh_desktop(data: Path) -> None:
+    run(["/usr/bin/update-desktop-database", str(data / "applications")])
+    if os.access("/usr/bin/kbuildsycoca6", os.X_OK):
+        run(["/usr/bin/kbuildsycoca6", "--noincremental"])
+
+
 def install(args: argparse.Namespace) -> None:
     os.umask(0o077)
     if os.getuid() == 0:
@@ -134,10 +171,17 @@ def install(args: argparse.Namespace) -> None:
             not manifest["files"]
             and "previous_mime_line" not in manifest
             and not manifest.get("portal_choices")
+            and not manifest.get("menu_entry")
         ):
             print("Already deactivated; private config and backups retained.")
             return
         run(["/usr/bin/systemctl", "--user", "disable", "--now", "deckbridge.service"])
+        if manifest.get("menu_entry"):
+            restore_menu = menu.restore(data, manifest["menu_entry"])
+            if restore_menu is not None:
+                apply_menu(restore_menu, manifest, state)
+            else:
+                print("Preserved user-changed Stream Deck menu entry.")
         for app, entry in manifest.get("portal_choices", {}).items():
             current = permissions.get(app, [])
             if current and current[0] == portal.HANDLER:
@@ -162,7 +206,7 @@ def install(args: argparse.Namespace) -> None:
         manifest.pop("previous_mime_line", None)
         atomic(manifest_path, json.dumps(manifest, indent=2).encode())
         run(["/usr/bin/systemctl", "--user", "daemon-reload"])
-        run(["/usr/bin/update-desktop-database", str(data / "applications")])
+        refresh_desktop(data)
         return
     if args.prefix is None:
         raise RuntimeError("Specify the audited --prefix explicitly")
@@ -236,6 +280,15 @@ WantedBy=default.target
                 raise RuntimeError("Modified obsolete runtime file preserved: " + str(obsolete))
             obsolete_files.append(obsolete)
     config_path = config / "deckbridge/config.toml"
+    if config_path.is_symlink():
+        raise RuntimeError("Config symlink refused")
+    config_original = None
+    if config_path.exists():
+        if load(config_path).prefix != prefix:
+            raise RuntimeError("Existing config names a different prefix; preserving it")
+        config_original = config_path.read_bytes()
+        if len(config_original) > 65536:
+            raise RuntimeError("Oversized configuration; preserving it")
     # JSON string quoting is a subset of TOML basic-string quoting for these paths.
     cfg = f"""version = 1
 [wine]
@@ -247,11 +300,30 @@ deep_links = true
 [applications]
 [urls]
 """
+    config_content = config_original if config_original is not None else cfg.encode()
+    mode = getattr(args, "webview_mode", None)
+    if mode is not None:
+        config_content = with_mode(config_content, mode)
+    menu_plan = None
+    if getattr(args, "no_menu", False):
+        if manifest.get("menu_entry"):
+            menu_plan = menu.restore(data, manifest["menu_entry"])
+    else:
+        menu_plan = menu.prepare(
+            data,
+            prefix,
+            quote_exec(str(launcher)) + " streamdeck",
+            quote_exec(str(home / ".local/bin/streamdeck-wine")),
+            manifest.get("menu_entry"),
+        )
     print(
         f"Install/update {len(files)} owned files; private config {config_path}; "
         f"streamdeck:// -> {DESKTOP}."
     )
-    print("Existing Wine prefix, installer, profiles and plugins are not modified.")
+    print("Existing Wine prefix, original launcher, profiles and plugins are not modified.")
+    print("Stream Deck menu integration: " + ("managed" if menu_plan is not None else "unchanged"))
+    if mode == "compatible":
+        print("Selected plugin-settings fix: app-local software rendering, renderer sandbox OFF.")
     print(
         f"Remembered legacy portal choices to update: {len(portal_changes)}; "
         "counters/consent retained."
@@ -273,14 +345,25 @@ deep_links = true
         temporary = Path(folder)
         (temporary / "deckbridge.service").write_bytes(files[service][0])
         (temporary / DESKTOP).write_bytes(files[desktop][0])
+        temporary_config = temporary / "config.toml"
+        atomic(temporary_config, config_content)
+        load(temporary_config)
         run(["/usr/bin/desktop-file-validate", str(temporary / DESKTOP)])
+        if menu_plan is not None and menu_plan.content is not None:
+            temporary_menu = temporary / "streamdeck-wine.desktop"
+            temporary_menu.write_bytes(menu_plan.content)
+            run(["/usr/bin/desktop-file-validate", str(temporary_menu)])
         # ExecStart must already exist for systemd-analyze; validate after managed copy.
-    if config_path.is_symlink():
-        raise RuntimeError("Config symlink refused")
-    if not config_path.exists():
-        atomic(config_path, cfg.encode())
-    if load(config_path).prefix != prefix:
-        raise RuntimeError("Existing config names a different prefix; preserving it")
+    if (
+        config_path.is_symlink()
+        or (config_original is None and config_path.exists())
+        or (config_original is not None and config_path.read_bytes() != config_original)
+    ):
+        raise RuntimeError("Configuration changed during installation; preserving it")
+    if config_content != config_original:
+        if config_original is not None:
+            private_backup(state, "webview-config", config_original)
+        atomic(config_path, config_content)
     text = mime.read_text() if mime.exists() else ""
     if "previous_mime_line" not in manifest:
         manifest["previous_mime_line"] = default_line(text)
@@ -294,9 +377,11 @@ deep_links = true
         obsolete.unlink(missing_ok=True)
         del manifest["files"][str(obsolete)]
     atomic(manifest_path, json.dumps(manifest, indent=2).encode())
+    if menu_plan is not None:
+        apply_menu(menu_plan, manifest, state)
     run(["/usr/bin/systemd-analyze", "--user", "verify", str(service)])
     atomic(mime, replace_default(text, MIME + "=" + DESKTOP + ";\n").encode())
-    run(["/usr/bin/update-desktop-database", str(data / "applications")])
+    refresh_desktop(data)
     run(["/usr/bin/systemctl", "--user", "daemon-reload"])
     run(["/usr/bin/systemctl", "--user", "enable", "deckbridge.service"])
     run(["/usr/bin/systemctl", "--user", "restart", "deckbridge.service"])
@@ -320,6 +405,14 @@ if __name__ == "__main__":
     parser.add_argument("--prefix", type=Path)
     parser.add_argument("--apply", action="store_true", help="Apply changes; default is dry-run")
     parser.add_argument("--deactivate", action="store_true")
+    parser.add_argument(
+        "--no-menu", action="store_true", help="Keep or restore the original menu entry"
+    )
+    parser.add_argument(
+        "--webview-mode",
+        choices=("compatible", "sandboxed"),
+        help="Explicit choice: plugin settings fix (reduced renderer isolation) or sandboxed mode",
+    )
     try:
         install(parser.parse_args())
     except (RuntimeError, OSError, ValueError, subprocess.SubprocessError, BridgeError) as error:

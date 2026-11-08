@@ -7,12 +7,17 @@ import contextlib
 import io
 import json
 import os
+import shlex
+import subprocess
+import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from deckbridge.compat.sdeck.oauth.portal import HANDLER, LEGACY
+from deckbridge.config import load
 from tools.install import MIME, ROOT, digest, install
 
 
@@ -167,3 +172,183 @@ class InstallTests(unittest.TestCase):
         self.args.apply = False
         install(self.args)
         self.assertEqual(self.permissions[""], [LEGACY, "2", "3"])
+
+    def menu_fixture(self):
+        data = self.home / "data"
+        base = data / "streamdeck-wine"
+        self.prefix = base / "prefix"
+        app = self.prefix / "drive_c/Program Files/Elgato/StreamDeck/StreamDeck.exe"
+        app.parent.mkdir(parents=True)
+        app.write_text("fixture, never executed")
+        (self.prefix / "system.reg").write_text("fixture")
+        (self.prefix / ".streamdeck-installer-owned").write_text(
+            f"streamdeck-wine installer v1:{os.getuid()}"
+        )
+        self.args.prefix = self.prefix
+        wrapper = self.home / ".local/bin/streamdeck-wine"
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text(
+            f"#!{sys.executable}\nimport json, os, pathlib\n"
+            "pathlib.Path(os.environ['MENU_RECEIPT']).write_text(json.dumps({"
+            "'sandbox':os.environ.get('QTWEBENGINE_DISABLE_SANDBOX'),"
+            "'chromium':os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS')}))\n"
+        )
+        wrapper.chmod(0o700)
+        desktop = data / "applications/streamdeck-wine.desktop"
+        desktop.parent.mkdir(parents=True)
+        original = (
+            "[Desktop Entry]\nType=Application\nName=Stream Deck (Wine)\n"
+            f'Exec="{wrapper}"\nIcon=preserved-icon\nTerminal=false\n'
+        ).encode()
+        desktop.write_bytes(original)
+        desktop.chmod(0o640)
+        (base / "managed-files.json").write_text(json.dumps({str(desktop): digest(original)}))
+        return desktop, original, wrapper
+
+    def test_menu_start_gets_selected_mode_without_private_config_editing(self):
+        desktop, _, _ = self.menu_fixture()
+        self.args.webview_mode = "compatible"
+        install(self.args)
+        cfg = load(self.config / "deckbridge/config.toml")
+        self.assertFalse(cfg.streamdeck_webview_sandbox)
+        self.assertTrue(cfg.streamdeck_webview_software)
+        command = next(
+            line[5:] for line in desktop.read_text().splitlines() if line.startswith("Exec=")
+        )
+        self.assertEqual(shlex.split(command), [str(self.launcher), "streamdeck"])
+        runtime = self.home / "runtime"
+        runtime.mkdir(mode=0o700)
+        receipt = self.home / "menu-receipt.json"
+        env = {
+            key: value for key, value in os.environ.items() if not key.startswith("QTWEBENGINE_")
+        }
+        env.update(HOME=str(self.home), XDG_RUNTIME_DIR=str(runtime), MENU_RECEIPT=str(receipt))
+        subprocess.run(  # noqa: S603 - installer-generated menu, only fixture executables
+            shlex.split(command), env=env, check=True, capture_output=True, timeout=10
+        )
+        observed = json.loads(receipt.read_text())
+        self.assertEqual(observed["sandbox"], "1")
+        self.assertIn("--disable-gpu", observed["chromium"])
+
+    def test_menu_install_update_and_deactivation_restore_original_bytes_and_mode(self):
+        desktop, original, wrapper = self.menu_fixture()
+        wrapper_before = wrapper.read_bytes()
+        install(self.args)
+        installed = desktop.read_bytes()
+        install(self.args)
+        self.assertEqual(desktop.read_bytes(), installed)
+        backups = list((self.home / "state/deckbridge/backups").glob("streamdeck-menu-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_bytes(), original)
+        self.args.deactivate = True
+        install(self.args)
+        self.assertEqual(desktop.read_bytes(), original)
+        self.assertEqual(desktop.stat().st_mode & 0o777, 0o640)
+        self.assertEqual(wrapper.read_bytes(), wrapper_before)
+        self.assertTrue((self.prefix / "system.reg").exists())
+
+    def test_custom_menu_blocks_install_before_any_changes(self):
+        desktop, _, _ = self.menu_fixture()
+        desktop.write_text("user customization")
+        self.args.webview_mode = "compatible"
+        before = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(RuntimeError, "Custom menu entry preserved"):
+            install(self.args)
+        self.assertEqual(
+            before, {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        )
+
+    def test_user_modified_managed_menu_survives_deactivation(self):
+        desktop, _, _ = self.menu_fixture()
+        install(self.args)
+        desktop.write_text("user replacement")
+        self.args.deactivate = True
+        install(self.args)
+        self.assertEqual(desktop.read_text(), "user replacement")
+
+    def test_modified_managed_menu_blocks_update_before_config_changes(self):
+        desktop, _, _ = self.menu_fixture()
+        install(self.args)
+        desktop.write_text("user replacement")
+        self.args.webview_mode = "compatible"
+        before = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(RuntimeError, "Modified menu entry preserved"):
+            install(self.args)
+        self.assertEqual(
+            before, {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        )
+
+    def test_menu_update_recovers_when_journal_precedes_menu_write(self):
+        desktop, original, _ = self.menu_fixture()
+        install(self.args)
+        desktop.write_bytes(original)
+        install(self.args)
+        self.assertIn(str(self.launcher), desktop.read_text())
+        self.args.deactivate = True
+        install(self.args)
+        self.assertEqual(desktop.read_bytes(), original)
+
+    def test_user_symlink_menu_is_preserved_on_deactivation(self):
+        desktop, _, _ = self.menu_fixture()
+        install(self.args)
+        target = self.home / "custom-menu"
+        target.write_text("user data")
+        desktop.unlink()
+        desktop.symlink_to(target)
+        self.args.deactivate = True
+        install(self.args)
+        self.assertTrue(desktop.is_symlink())
+        self.assertEqual(target.read_text(), "user data")
+
+    def test_missing_original_menu_is_created_and_removed_on_deactivation(self):
+        desktop, _, _ = self.menu_fixture()
+        desktop.unlink()
+        install(self.args)
+        self.assertIn(" streamdeck\n", desktop.read_text())
+        self.args.deactivate = True
+        install(self.args)
+        self.assertFalse(desktop.exists())
+
+    def test_no_menu_switch_restores_original_and_preserves_unmanaged_menu(self):
+        desktop, original, _ = self.menu_fixture()
+        install(self.args)
+        self.args.no_menu = True
+        install(self.args)
+        self.assertEqual(desktop.read_bytes(), original)
+        desktop.write_text("new custom menu")
+        install(self.args)
+        self.assertEqual(desktop.read_text(), "new custom menu")
+
+    def test_webview_mode_change_preserves_audio_and_keeps_verified_private_backup(self):
+        self.menu_fixture()
+        install(self.args)
+        path = self.config / "deckbridge/config.toml"
+        extra = (
+            '\n[audio]\nenabled=true\nallow_write=true\nallowed_apps=["app:fixture"]\n'
+            '[compat.volume_controller]\nenabled=true\ndisplay="text"\n'
+        )
+        original = path.read_bytes() + extra.encode()
+        path.write_bytes(original)
+        self.args.webview_mode = "compatible"
+        install(self.args)
+        self.assertEqual(
+            tomllib.loads(path.read_text())["audio"], tomllib.loads(original.decode())["audio"]
+        )
+        backups = list((self.home / "state/deckbridge/backups").glob("webview-config-*"))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_bytes(), original)
+        self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
+        self.args.webview_mode = "sandboxed"
+        install(self.args)
+        self.assertTrue(load(path).streamdeck_webview_sandbox)
+        self.assertFalse(load(path).streamdeck_webview_software)
+
+    def test_menu_and_mode_dry_run_does_not_write(self):
+        self.menu_fixture()
+        self.args.webview_mode = "compatible"
+        self.args.apply = False
+        before = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        install(self.args)
+        self.assertEqual(
+            before, {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+        )

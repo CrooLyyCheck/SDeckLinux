@@ -26,7 +26,7 @@ boundaries are in [STATUS.md](STATUS.md).
 | 🟢 | Marketplace OAuth | Account linking in the original application. |
 | 🟡 | Marketplace installation | Volume Controller installation; other downloads and updates are untested. |
 | 🟢 | Existing profiles and resources | Preserved in the original application; the bridge does not rewrite profiles. |
-| 🟡 | Plugin settings / property inspector | Main Auto Detection panel and Step Size slider. Requires the [WebEngine workaround](USAGE.md#original-plugin-settings-under-wine): renderer sandbox off, software rendering on. Step Size changes need behavioral verification. |
+| 🟡 | Plugin settings / property inspector | Main Auto Detection panel and Step Size slider. [Guided setup](USAGE.md#guided-setup) applies the WebEngine mode and menu handoff after an explicit mode choice. Step Size changes need behavioral verification. |
 | 🟢 | Bridge installation and removal | User-only integration with reversible, scoped MIME/portal changes. |
 | ⚪ | Stream Deck application updates | Updater behavior and compatibility after an upgrade. |
 

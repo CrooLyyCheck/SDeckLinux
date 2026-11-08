@@ -32,8 +32,7 @@ dependency direction and approach to adding compatibility.
 
 [**View compatibility tables →**](docs/COMPATIBILITY.md)
 
-Application, basic Stream Deck functions and plugins, with color-coded status
-and version-specific limitations.
+See Application, basic Stream Deck functions and plugins, progress here.
 
 ## Development
 

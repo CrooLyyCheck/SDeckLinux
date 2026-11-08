@@ -243,8 +243,9 @@ new DLL overrides, global Wine/KDE/security changes or external CI were added.
 
 The source project is named **SDeckLinux**. The runtime package, commands,
 configuration paths and service retain the name **DeckBridge** to preserve the
-working installation. The README separates application, basic device-function
-and plugin compatibility. Source publication excludes the Wine prefix, vendor
+working installation. The README links to the dedicated compatibility page,
+which separates application, basic device-function and plugin status with colored
+markers and text labels. Source publication excludes the Wine prefix, vendor
 software, private state and test captures. No GitHub Actions or external CI is
 configured. Command-local verified public noreply Git identity is used; no global
 Git configuration is changed.

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Idempotent user-only installation alongside the existing Wine installer.
 
-Does not install Stream Deck or edit its prefix. The recognized installer's menu
-entry can be handed over with a verified backup and restored on deactivation.
+Does not install Stream Deck or patch vendor files. The recognized menu entry
+and one audited renderer preference are backed up and restored on deactivation.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 from deckbridge.compat.sdeck.oauth import portal  # noqa: E402 - standalone repository tool
 from deckbridge.compat.sdeck.webview import desktop as menu  # noqa: E402
+from deckbridge.compat.sdeck.webview import native_renderer  # noqa: E402
 from deckbridge.compat.sdeck.webview.preferences import with_mode  # noqa: E402
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
@@ -172,9 +173,16 @@ def install(args: argparse.Namespace) -> None:
             and "previous_mime_line" not in manifest
             and not manifest.get("portal_choices")
             and not manifest.get("menu_entry")
+            and not manifest.get(native_renderer.MANAGED)
         ):
             print("Already deactivated; private config and backups retained.")
             return
+        native_renderer.restore(
+            data,
+            manifest,
+            lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+            lambda kind, content: private_backup(state, kind, content),
+        )
         run(["/usr/bin/systemctl", "--user", "disable", "--now", "deckbridge.service"])
         if manifest.get("menu_entry"):
             restore_menu = menu.restore(data, manifest["menu_entry"])
@@ -323,7 +331,9 @@ software_rendering = true
         f"Install/update {len(files)} owned files; private config {config_path}; "
         f"streamdeck:// -> {DESKTOP}."
     )
-    print("Existing Wine prefix, original launcher, profiles and plugins are not modified.")
+    print("Original launcher, vendor binaries, profiles and plugins are not modified.")
+    if native_renderer.supported(prefix, data):
+        print("The audited Stream Deck renderer preference is managed with registry backups.")
     print("Stream Deck menu integration: " + ("managed" if menu_plan is not None else "unchanged"))
     if mode == "compatible":
         print("Selected plugin-settings fix: app-local software rendering, renderer sandbox OFF.")
@@ -350,7 +360,7 @@ software_rendering = true
         (temporary / DESKTOP).write_bytes(files[desktop][0])
         temporary_config = temporary / "config.toml"
         atomic(temporary_config, config_content)
-        load(temporary_config)
+        effective_config = load(temporary_config)
         run(["/usr/bin/desktop-file-validate", str(temporary / DESKTOP)])
         if menu_plan is not None and menu_plan.content is not None:
             temporary_menu = temporary / "streamdeck-wine.desktop"
@@ -363,6 +373,14 @@ software_rendering = true
         or (config_original is not None and config_path.read_bytes() != config_original)
     ):
         raise RuntimeError("Configuration changed during installation; preserving it")
+    native_renderer.synchronize(
+        prefix,
+        data,
+        effective_config.streamdeck_webview_software,
+        manifest,
+        lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+        lambda kind, content: private_backup(state, kind, content),
+    )
     if config_content != config_original:
         if config_original is not None:
             private_backup(state, "webview-config", config_original)

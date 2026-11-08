@@ -35,7 +35,8 @@ Hardware-free acceptance executes the generated menu from a fresh ordinary
 installation, with no mode flag or config editing, and observes both flags at a
 fixture launcher. Tests also cover older config migration, explicit opt-out
 preservation, custom entries, reinstall and menu restoration. Current suite:
-**92 hardware-free tests**. No audio mutation or new OAuth flow is involved.
+**106 hardware-free tests**, including native renderer ownership/rollback coverage.
+No audio mutation or new OAuth flow is involved.
 
 The prior installer was already applied on the audited workstation; its private
 configuration remained byte-identical, including audio preferences. Safe evidence
@@ -50,6 +51,50 @@ connected. Installed module hashes match ownership records. Safe evidence is
 private in `builtin-startup-install.json`.
 
 ## Follow-up: system volume, icons and property inspectors
+
+### Resolved: notification rendering after Windows backup import
+
+The user reported a large blank secondary window and a blank notification popup
+after importing an expanded Windows profile backup. The main key-grid interface
+still renders. The secondary Stream Deck window was captured as a white,
+frameless surface. Wine repeatedly reports DirectComposition RGBA-to-BGRA surface
+conversion failures. Earlier QtWebEngine child crashes were also observed.
+
+Three process-local trials did not fix the reported windows: Qt Quick software
+backend, Qt's legacy D3D swapchain, and disabling Chromium DirectComposition.
+The ineffective flags and temporary logging rules were removed from the launch
+helper; these trials were not published as working compatibility.
+
+Inspection of the original application's startup code identified its own
+QSettings boolean `platform_render_surface_enabled`, defaulting to true. Its
+enabled branch sets QWidget RHI/Direct3D and the disabled branch selects the
+software graphics API. The setting was absent in the existing application key.
+After a verified private registry/application-settings backup, a scoped
+`REG_DWORD 0` was written under
+`HKCU\Software\Elgato Systems GmbH\StreamDeck` and read back through Wine.
+After restarting, the user confirmed the result was correct and identified the
+large extra window as **Virtual Stream Deck**. It is an application feature, not
+an unwanted process/window to suppress. Virtual Deck actions remain untested.
+The original application now reports `RasterSurface`; the new Wine log contains
+no DirectComposition errors. Native-window acceptance is recorded separately
+from the earlier failed flag trials.
+
+Normal installation/update now manages this single preference for the audited
+application version/hash, under `compat/sdeck/webview/native_renderer.py`.
+Bounded verified registry backups precede Wine access; a journal retains the
+original typed value or absence before writing. Deactivation or installation
+with `software_rendering = false` restores that original state if still owned.
+User changes are preserved, and unrecognized application builds are not modified.
+Vendor binaries, profiles and plugins remain unchanged.
+
+The standard `make install` flow passed on the audited workstation with this
+manager included. Private configuration, original launcher, vendor executable
+and profile JSON hashes stayed unchanged; managed runtime hashes match and the
+bridge service is active. The original absent value from the accepted trial is
+retained in installation ownership for eventual rollback.
+
+The separate missing-plugin dialog names SimHub Input Trigger from the imported
+profile; its content renders normally and has not been removed or patched.
 
 The user confirmed normal per-app control, and requested system control, native
 icons with a display preference, event-sound filtering and missing inspector UI.

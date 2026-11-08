@@ -75,6 +75,24 @@ class InstallTests(unittest.TestCase):
         after = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
 
+    def test_native_renderer_is_builtin_respects_opt_out_and_restores_on_deactivation(self):
+        with (
+            patch("tools.install.native_renderer.synchronize") as synchronize,
+            patch("tools.install.native_renderer.restore") as restore,
+        ):
+            self.args.apply = False
+            install(self.args)
+            synchronize.assert_not_called()
+            self.args.apply = True
+            install(self.args)
+            self.assertTrue(synchronize.call_args.args[2])
+            self.args.webview_mode = "sandboxed"
+            install(self.args)
+            self.assertFalse(synchronize.call_args.args[2])
+            self.args.deactivate = True
+            install(self.args)
+            restore.assert_called_once()
+
     def obsolete_file(self):
         path = self.home / "data/deckbridge/runtime/deckbridge/portal.py"
         path.write_bytes(b"# previously owned module\n")

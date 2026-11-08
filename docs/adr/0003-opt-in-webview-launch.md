@@ -12,6 +12,17 @@ WebEngine keys and preserve explicit overrides. Standard installation also wires
 the menu to this launch path. Renderer isolation remains a documented tradeoff,
 scoped to Stream Deck; a sandboxed override remains available.
 
+## Native surface preference follow-up
+
+The notification popup required the application's own native rendering preference
+in addition to the WebEngine launch environment. Standard installation now
+manages `platform_render_surface_enabled = 0` for the exact audited build when
+software rendering is enabled. This is a prefix-local application setting with
+verified registry backups, write-ahead ownership and conditional restoration;
+it also affects launches through the original command. It does not patch vendor
+code or profiles. Unrecognized builds are left untouched. This supersedes the
+original environment-only scope below; see [the current behavior](../compat/sdeck/webview.md).
+
 ## Original decision (historical)
 
 At the initial milestone this mode was disabled by default.

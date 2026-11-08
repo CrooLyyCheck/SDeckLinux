@@ -34,9 +34,37 @@ the now-healthy renderer. No-sandbox mode alone was insufficient.
 Adding only `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` to the approved launch
 made the panel visible in the native window; the user confirmed the result.
 This is the accepted current configuration: renderer sandbox disabled with
-separate daily-use consent, plus Chromium software rendering. No Qt Quick,
-global GPU, security or vendor-file setting was changed. Remote debugging is off.
+separate daily-use consent, plus Chromium software rendering. This initial
+comparison changed no Qt Quick, global GPU or vendor-file setting. Remote debugging is off.
 Evidence is private in `webview-composition-smoke.json`.
+
+## Native application surfaces
+
+Following a Windows backup import, the notification popup remained blank with
+the accepted WebEngine flags. The original Stream Deck application has a separate
+`platform_render_surface_enabled` QSettings boolean. Disabling it selects the
+native software graphics API instead of QWidget RHI/Direct3D. After restart the
+application reported `RasterSurface`, the Wine log had no DirectComposition
+errors, and the user confirmed correct behavior. The large extra startup window
+was identified as **Virtual Stream Deck**; it is not hidden or removed.
+
+Standard installation/update sets this one value to `REG_DWORD 0` under
+`HKCU\Software\Elgato Systems GmbH\StreamDeck` when `software_rendering = true`.
+This is limited to Stream Deck **7.6.1.23033**, SHA-256
+`d9487481d42e5c8d13254c813d5c80158fb58d77c37e8c89036549f3aae38618`,
+in the recognized user-owned prefix. Other builds receive no native preference
+write. There is no vendor binary, profile or plugin modification.
+
+Before accessing Wine, the installer checks free space and creates bounded,
+verified private registry backups. Its ownership journal records the original
+typed value or absence before writing and verifies readback. Deactivation, or
+rerunning standard installation after setting `software_rendering = false`,
+restores the original state if the value is still owned. Later user changes are
+preserved. A dry-run does not start Wine or change the prefix.
+
+Unlike the WebEngine environment flags, this application preference is stored in
+the prefix and also affects direct `streamdeck-wine` launches. It takes effect
+on the next application start; the installer does not restart Stream Deck.
 
 ## Built-in startup compatibility
 
@@ -60,7 +88,8 @@ pages run with the user's account permissions. To opt out, set
 `renderer_sandbox = true` and `software_rendering = false`, or use
 `tools/install.py --webview-mode sandboxed` with the usual prefix/apply options.
 The two preferences remain independently configurable. Software rendering adds
-`--disable-gpu` while preserving unrelated Chromium flags. No remote debugger is
+`--disable-gpu` while preserving unrelated Chromium flags; installation also
+manages the native surface preference above. No remote debugger is
 enabled and no global security or GPU preference is changed.
 
 ## Menu and original launcher
@@ -68,13 +97,14 @@ enabled and no global security or GPU preference is changed.
 The normal install hands the existing menu icon to `deckbridge streamdeck`.
 Original menu bytes/mode are saved privately and restored on deactivation if the
 entry is still managed. Modified or unowned entries are preserved. `--no-menu`
-opts out or restores the menu. No autostart entry is enabled and no vendor/prefix
-file is edited.
+opts out or restores the menu. No autostart entry is enabled. Vendor files,
+profiles and plugins are preserved; the native renderer value is managed separately.
 
 The launch helper uses the existing user-owned `streamdeck-wine` command,
 retaining its Wine fixes. It validates the exact prefix and ownership marker;
 unsupported layouts fail visibly. A local patch to that original command is not
-required. Direct `streamdeck-wine` launches remain independent. Quit a running
+required. Direct `streamdeck-wine` bypasses the process-local WebEngine flags,
+while retaining the prefix's native renderer preference. Quit a running
 instance before switching modes; the helper refuses duplicate instances.
 
 The relevant settings are in the **original main Auto Detection or Manual

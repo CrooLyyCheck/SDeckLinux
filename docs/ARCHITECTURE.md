@@ -94,6 +94,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.compat.sdeck.oauth` | Stream Deck URI validation, KDE ingress repair, exact-instance forwarding and scoped portal integration |
 | `deckbridge.compat.sdeck.webview` | Built-in Wine launch defaults (software rendering, renderer sandbox off), with explicit local overrides |
 | `deckbridge.compat.sdeck.webview.desktop` / `preferences` | Versioned installer menu ownership/restore plan and explicit WebEngine preference editing |
+| `deckbridge.compat.sdeck.webview.native_renderer` | Build/hash-gated native surface preference, bounded registry backups, ownership journal, verified write and scoped restoration |
 | `deckbridge.config` | Private v1 TOML, exact Wine paths, individually enabled mappings |
 | `deckbridge.protocol` | Bounded typed request envelope and fixed error codes |
 | `deckbridge.client` / `server` | Framing, peer UID, deadlines, disconnects and explicit reconnection |

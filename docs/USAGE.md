@@ -13,6 +13,8 @@ rendering is on and the WebEngine renderer sandbox is off for Stream Deck's
 plugin pages. This reduces renderer isolation inside the app. No mode picker,
 extra fix command or private TOML editing is required. Explicit existing
 preferences are preserved; advanced overrides are documented below.
+For the audited Stream Deck build, installation also manages its native software
+renderer preference with private registry backups and reversible ownership.
 
 The ordinary **Stream Deck (Wine)** menu icon uses DeckBridge automatically. Quit
 an already running app after installation, then reopen it from the menu. The
@@ -79,6 +81,7 @@ The built-in default is software rendering with the renderer sandbox disabled.
 Omitting `--webview-mode` uses these defaults for fresh/older configurations and
 preserves explicit existing preferences. `--webview-mode sandboxed` is an optional
 override that restores sandboxing and automatic GPU selection;
+it also restores the native renderer value previously managed by DeckBridge.
 `--webview-mode compatible` resets an explicit override to the built-in mode.
 Unrelated settings are preserved, and explicit changes keep a private backup.
 
@@ -186,8 +189,9 @@ for supported actions and current limits.
 
 ## Original plugin settings under Wine
 
-If the plugin property inspector is blank, the tested Wine setup requires
-process-local WebEngine options for renderer startup and software composition.
+The tested Wine setup uses process-local WebEngine options for renderer startup
+and software composition, plus an installer-managed native surface preference
+for the audited application build. These fixes are built into ordinary installation.
 See the [WebEngine compatibility notes](compat/sdeck/webview.md) for the exact
 scope and known limits.
 
@@ -207,7 +211,10 @@ they run with your account's permissions.** To opt out, set
 `--webview-mode sandboxed` option. Explicit settings survive ordinary updates.
 
 The menu icon already uses the same launch path. The direct `streamdeck-wine`
-command remains independent. Quit an existing app before changing modes. Remote
+command bypasses the WebEngine environment flags but shares the prefix's native
+renderer preference. After changing `software_rendering`, rerun standard
+installation to synchronize or restore that native preference. Quit an existing
+app before changing modes. Remote
 debugging is not enabled. Settings belong to the main Auto/Manual Detection
 action; generated +/- keys do not each have their own panel in this plugin build.
 
@@ -229,7 +236,8 @@ python3 tools/install.py --deactivate --apply
 ```
 
 This stops/disables the daemon, restores its MIME default key if still selected,
-restores owned portal choices and its unchanged menu entry, and removes unchanged owned files.
+restores owned portal choices, its unchanged menu entry and the original native
+renderer value (or absence), and removes unchanged owned files.
 User-modified files, configuration, backups,
 the Wine prefix and the original Elgato installation remain. A changed MIME
 default chosen by the user is preserved. The original `streamdeck-wine` launcher

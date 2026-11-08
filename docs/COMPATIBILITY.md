@@ -27,7 +27,8 @@ boundaries are in [STATUS.md](STATUS.md).
 | 🟡 | Marketplace installation | Volume Controller installation; other downloads and updates are untested. |
 | 🟢 | Existing profiles and resources | Preserved in the original application; the bridge does not rewrite profiles. |
 | 🟡 | Plugin settings / property inspector | Main Auto Detection panel and Step Size slider. Wine startup fixes and menu handoff are built into [standard installation](USAGE.md#standard-installation). Step Size changes need behavioral verification. |
-| 🟢 | Bridge installation and removal | User-only integration with reversible, scoped MIME/portal changes. |
+| 🟢 | Notification popup rendering | User-confirmed after applying the application's native software-renderer preference; included in standard installation for the audited build. [Evidence](STATUS.md#resolved-notification-rendering-after-windows-backup-import). |
+| 🟢 | Bridge installation and removal | User-only integration with reversible, scoped MIME/portal, menu and native renderer preference changes. |
 | ⚪ | Stream Deck application updates | Updater behavior and compatibility after an upgrade. |
 
 ## Basic Stream Deck functions
@@ -37,6 +38,7 @@ boundaries are in [STATUS.md](STATUS.md).
 | 🟢 | MK.2 USB/HID connection | Device access and connection through the original application. |
 | 🟡 | Key images and physical buttons | Volume Controller's dynamic Auto profile; other actions require separate testing. |
 | 🟡 | Profile loading | Existing profiles and dynamic Auto profile; navigation, folders and switching are not exhaustively tested. |
+| 🟡 | Virtual Stream Deck | Startup window identified by the user; virtual key actions and shortcuts remain untested. |
 | 🟡 | Launching native Linux applications | Allowlisted CLI/Wine handoff; physical GUI-launch action untested. |
 | ⚪ | Opening allowlisted URLs | Provider implemented; physical action/browser behavior untested. |
 | ⚪ | Original Wine hotkey actions | Desktop-wide shortcuts require separate testing. |

@@ -37,7 +37,7 @@ those interfaces. Each integration has an explicit scope and can be disabled.
 ```text
 deckbridge/compat/sdeck/          # Stream Deck application interfaces
   oauth/                        # URL and authorization handoff
-  webview/                      # Embedded browser launch options
+  webview/                      # Browser startup and native surface rendering
 deckbridge/compat/plugins/       # Versioned plugin interfaces
   volume_controller/            # Audio Router service contract
 deckbridge/backends/             # Reusable Linux implementations

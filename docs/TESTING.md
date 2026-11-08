@@ -179,6 +179,13 @@ instance before changing its environment and restore the previous preferences
 after a controlled comparison. See the
 [exact scope and result](compat/sdeck/webview.md).
 
+Native surface preference tests use a synthetic registry and executable hash;
+they never execute Wine. They check backup/journal ordering, exact typed rollback,
+interrupted writes, opt-out, user overrides and unsupported builds. Real-host
+notification acceptance is separately recorded in [STATUS.md](STATUS.md#resolved-notification-rendering-after-windows-backup-import),
+including the distinction between notification rendering and the legitimate
+Virtual Stream Deck window. Virtual key actions are not covered by that observation.
+
 A delayed human Quit must be observed using the exact main PID/start identity;
 transient matching Wine helpers must not be mistaken for the main exiting.
 The initial ad-hoc observer aborted on such a transition and the app had to be

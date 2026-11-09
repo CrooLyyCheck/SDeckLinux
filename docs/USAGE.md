@@ -15,6 +15,9 @@ extra fix command or private TOML editing is required. Explicit existing
 preferences are preserved; advanced overrides are documented below.
 For the audited Stream Deck build, installation also manages its native software
 renderer preference with private registry backups and reversible ownership.
+It also supplies a shared Wine Arial fallback to existing Liberation Sans for
+select-list labels, preserving custom aliases. Fontconfig (`fc-match`) and
+Liberation Sans are prerequisites; no font download is performed.
 
 The ordinary **Stream Deck (Wine)** menu icon uses DeckBridge automatically. Quit
 an already running app after installation, then reopen it from the menu. The
@@ -219,6 +222,17 @@ debugging is not enabled. Settings belong to the main Auto/Manual Detection
 action; generated +/- keys do not each have their own panel in this plugin build.
 
 ## Disable or remove integration
+
+To disable only the installed Wine font alias, set:
+
+```toml
+[compat.windows.fonts]
+enabled = false
+```
+
+Rerun `make install` and restart Stream Deck to restore the previous alias.
+Ordinary updates preserve this explicit opt-out. Full deactivation also restores
+the owned font alias, while preserving later user changes.
 
 Disable just callback forwarding with `deep_links = false` in `[features]`, then
 restart the service. Removing a native mapping disables that target.

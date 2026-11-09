@@ -1,0 +1,29 @@
+# ADR 0004: shared Core Audio endpoint-volume boundary
+
+Status: proposed, 2026-11-10; implementation and device acceptance pending.
+
+Volume Controller's application actions call Audio Router. Input/Output Device
+Control instead uses its native Windows device addon. Wine enumerates devices,
+but the user observes no output volume change after pressing the configured key.
+
+The [matching Wine 11.20 source](https://github.com/wine-mirror/wine/blob/wine-11.20/dlls/mmdevapi/audiovolume.c)
+returns `E_NOTIMPL` from the scalar setter, constant 1.0 from its getter, and stores
+mute only in the wrapper. Read-only original-addon observations returned 1.0 on
+all endpoints. No automatic mutation was used for this diagnosis.
+
+Implement the actual endpoint-volume API under `compat/windows/`, sharing a
+native device model under `backends/audio/`. Plugin UUID/version and Audio Router
+translation stay under `compat/plugins/volume_controller/`. Preserve working Wine
+enumeration, vendor files, profiles and session control.
+
+A native COM bridge needs verified x64 ABI/interface ordering, QueryInterface
+identity/refcounts, aggregation, threading, notifications and lifetime behavior.
+Match endpoints by exact native identity, not friendly-name guesses. Keep input
+and output write policy separate, preserve channel balance, reject stale handles
+and never retry uncertain writes. Unsupported methods must fail explicitly.
+
+The workstation has host GCC/binutils but lacks Wine development headers and a
+Windows compiler. Use a reproducible isolated native build environment without
+implicit system packages or system DLL replacement. Deploy only after reversible
+integration and actual-consumer acceptance. Font fallback does not imply device
+control support; no empty shim or success-only API placeholder is provided.

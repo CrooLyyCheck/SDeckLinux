@@ -30,6 +30,7 @@ The diagram describes responsibilities; the exact transports are shown below.
 | Windows execution | Existing Wine installation and original vendor software | Preserve working behavior; audit a missing boundary before adding an implementation. |
 | Application compatibility | `deckbridge/compat/sdeck/<service>/` | Stream Deck-specific URL, authorization and renderer integration; no plugin-specific wire fields. |
 | Plugin compatibility | `deckbridge/compat/plugins/<plugin_name>/` | Exact plugin contracts, version checks and translations into reusable host operations. |
+| Shared Windows compatibility | `deckbridge/compat/windows/` | Wine font-family fallback and bounded registry access; shared by consumers, without plugin wire fields. |
 | Native implementations | `deckbridge/backends/<capability>/` | Linux models, service access and lifecycle; never import plugin contracts or expose vendor wire IDs. |
 | Shared runtime | Configuration, IPC, process helpers and installation | Bounded transport, local policy and reversible deployment; no plugin behavior in generic IPC. |
 
@@ -38,6 +39,16 @@ models a host capability such as an audio stream; an adapter owns how that model
 maps to a particular consumer's methods, units and identifiers. For example,
 Volume Controller's synthetic `processID` belongs to its adapter, while PipeWire
 server/stream identities belong to the audio backend.
+
+Organize by the boundary being implemented, rather than assigning all audio code
+to a plugin or calling every host operation a Windows API. Auto and Manual
+Detection share the same native application model. A future consumer can reuse
+that backend without importing Volume Controller's JSON-RPC names. If an actual
+Windows API translation is required, place its ABI/COM contract under
+`compat/windows/<api>/` and let it use the same backend; add that directory only
+with a concrete implementation and consumer. A service contract shared by
+plugins should likewise be named for that service, with plugin version checks
+kept separate. Existing working Wine APIs remain Wine-owned.
 
 ## Adding compatibility
 

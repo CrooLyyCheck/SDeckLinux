@@ -1,4 +1,37 @@
-# Status — 2026-11-08, Europe/Warsaw
+# Status — 2026-11-10, Europe/Warsaw
+
+## Manual Detection and device-list follow-up
+
+Read-only calls through the unchanged Windows device addon enumerated seven
+active Wine endpoints (four inputs, three outputs) and both default roles. An
+isolated SDK fixture running the unchanged plugin received Manual Detection's
+application data and both device lists. No key/dial/audio mutation was sent.
+The real Manual inspector also contained valid application options; the user
+confirmed that its expanded popup appeared blank.
+
+Popup capture showed backgrounds/highlights without labels. A live DOM comparison
+changing only Arial to Liberation Sans immediately rendered the original labels;
+a color-only comparison did not. Selection indices were unchanged and temporary
+styles restored. Additional Qt Quick software rendering was ineffective and is
+not included. No new Core Audio shim or plugin protocol is required for this issue.
+
+Shared Wine font fallback is now implemented in `compat/windows/fonts.py`, with
+bounded registry helpers shared by the native surface preference manager.
+Installation/update and deactivation own the single Arial alias reversibly, with
+verified backups, journal recovery, explicit opt-out and user-override preservation.
+The local installation passed, kept private configuration byte-identical and
+verified readback. **114 hardware-free tests pass**. The user confirmed visible
+names in normal use and supplied the Output Device Control panel. The normal
+process has no debugger, Qt Quick trial or diagnostic flags. Manual audio actions
+and individual input-list visual acceptance remain separate gates.
+
+Output Device Control still does nothing, including with Virtuoso selected. In
+Wine 11.20, `AEV_SetMasterVolumeLevelScalar` returns `E_NOTIMPL`, its getter returns
+constant 1.0, and mute is stored only in the wrapper. Read-only original-addon
+observations returned 1.0 on all seven endpoints. Enumeration does not establish
+control; the Audio Router System setter uses a different boundary.
+No device setter was invoked automatically. Shared Core Audio endpoint support
+is the next implementation boundary; see [ADR 0004](adr/0004-core-audio-endpoint-boundary.md).
 
 ## Delivered scope
 

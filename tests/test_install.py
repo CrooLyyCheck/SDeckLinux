@@ -56,6 +56,7 @@ class InstallTests(unittest.TestCase):
                 },
             ),
             patch("tools.install.run"),
+            patch("tools.install.fonts.synchronize"),
             patch(
                 "deckbridge.compat.sdeck.oauth.portal.read_permissions",
                 side_effect=lambda: dict(self.permissions),
@@ -74,6 +75,20 @@ class InstallTests(unittest.TestCase):
         install(self.args)
         after = {str(p): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
+
+    def test_font_fallback_is_automatic_and_explicit_opt_out_is_preserved(self):
+        with patch("tools.install.fonts.synchronize") as synchronize:
+            install(self.args)
+            self.assertTrue(synchronize.call_args.args[2])
+            path = self.config / "deckbridge/config.toml"
+            content = path.read_bytes().replace(
+                b"[compat.windows.fonts]\nenabled = true",
+                b"[compat.windows.fonts]\nenabled = false",
+            )
+            path.write_bytes(content)
+            install(self.args)
+            self.assertFalse(synchronize.call_args.args[2])
+            self.assertEqual(path.read_bytes(), content)
 
     def test_native_renderer_is_builtin_respects_opt_out_and_restores_on_deactivation(self):
         with (

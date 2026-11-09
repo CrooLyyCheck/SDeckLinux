@@ -1,6 +1,6 @@
 # Compatibility
 
-Experimental. Status as of **2026-11-08**, on **Fedora 44, KDE Plasma 6.7.5 /
+Experimental. Status as of **2026-11-10**, on **Fedora 44, KDE Plasma 6.7.5 /
 Wayland, Wine 11.20 Staging, Stream Deck 7.6.1.23033, PipeWire 1.6.10 /
 WirePlumber 0.5.18, and Stream Deck MK.2**. Other environments are untested.
 
@@ -26,7 +26,7 @@ boundaries are in [STATUS.md](STATUS.md).
 | 🟢 | Marketplace OAuth | Account linking in the original application. |
 | 🟡 | Marketplace installation | Volume Controller installation; other downloads and updates are untested. |
 | 🟢 | Existing profiles and resources | Preserved in the original application; the bridge does not rewrite profiles. |
-| 🟡 | Plugin settings / property inspector | Main Auto Detection panel and Step Size slider. Wine startup fixes and menu handoff are built into [standard installation](USAGE.md#standard-installation). Step Size changes need behavioral verification. |
+| 🟡 | Plugin settings / property inspector | Auto panel/Step Size and visible Output Device Control lists; shared Wine font fallback is built into installation. Manual/device actions require separate behavioral acceptance. |
 | 🟢 | Notification popup rendering | User-confirmed after applying the application's native software-renderer preference; included in standard installation for the audited build. [Evidence](STATUS.md#resolved-notification-rendering-after-windows-backup-import). |
 | 🟢 | Bridge installation and removal | User-only integration with reversible, scoped MIME/portal, menu and native renderer preference changes. |
 | ⚪ | Stream Deck application updates | Updater behavior and compatibility after an upgrade. |

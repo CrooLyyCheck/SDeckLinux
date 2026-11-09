@@ -87,6 +87,12 @@ about 30 seconds), without restarting Stream Deck or replaying actions.
 
 ## Acceptance and limits
 
+Follow-up: list-label rendering uses the shared Wine Arial fallback described in
+[WebEngine notes](../sdeck/webview.md#select-list-font-fallback). Normal-launch
+Output Device Control labels are visible, but the user reports no device-volume
+change. Wine 11.20's endpoint scalar setter is unimplemented; enumeration is not
+proof of control. See [the shared API boundary](../../adr/0004-core-audio-endpoint-boundary.md).
+
 - Actual original client, matching pinned build/prefix/socket owner: connected
   and enumerated Helium, Flatpak Fluxer Canary and `DeckBridge Test`.
 - Dynamic Auto profile: user observed test column and physical buttons.

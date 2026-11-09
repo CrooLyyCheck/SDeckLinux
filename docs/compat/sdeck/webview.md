@@ -68,6 +68,31 @@ on the next application start; the installer does not restart Stream Deck.
 
 ## Built-in startup compatibility
 
+### Select-list font fallback
+
+Volume Controller's Manual Detection and input/output device lists contained
+valid data while popup labels remained invisible. A controlled live-page
+comparison changed only the select/option font from Arial to Liberation Sans:
+labels appeared immediately. A color-only comparison did not fix them. The
+original scripts, option values and selected index were preserved.
+
+Standard installation now sets the Wine DirectWrite family replacement
+`HKCU\Software\Wine\Fonts\Replacements\Arial` to `Liberation Sans`, using an
+already installed font. This is shared Windows compatibility in
+`compat/windows/fonts.py`, not a plugin patch. Wine ignores replacements when
+the original font family exists. Existing custom aliases are preserved. Verified
+registry backups and a write-ahead ownership record precede changes; removal
+restores only the owned value, preserving later user changes.
+
+`fc-match` and Liberation Sans must already be installed. No font files are
+downloaded or redistributed. To opt out, set `[compat.windows.fonts] enabled = false`
+and rerun standard installation. This restores the owned alias; restart Stream
+Deck for the font collection to refresh. The renderer sandbox preference is
+independent. Remote debugging and injected styles are not part of this fix.
+
+See [the Wine implementation](https://github.com/wine-mirror/wine/blob/master/dlls/dwrite/font.c)
+for system-font collection family replacements.
+
 The normal `make install` operation installs the menu integration and the built-in
 Wine startup behavior. Software rendering is enabled and the WebEngine renderer
 sandbox is disabled for Stream Deck. There is no separate repair installer or

@@ -55,6 +55,7 @@ class Config:
     volume_controller_hide_events: bool = True
     streamdeck_webview_sandbox: bool = False
     streamdeck_webview_software: bool = True
+    wine_font_fallback: bool = True
 
 
 def absolute(value: object) -> Path:
@@ -112,10 +113,19 @@ def load(path: Path) -> Config:
         not isinstance(audio, dict)
         or set(audio) - {"enabled", "allow_write", "allowed_apps", "allow_system_write"}
         or not isinstance(compat, dict)
-        or set(compat) - {"volume_controller", "sdeck"}
+        or set(compat) - {"volume_controller", "sdeck", "windows"}
     ):
         raise BridgeError("invalid_audio_config")
     adapter = compat.get("volume_controller", {})
+    windows = compat.get("windows", {})
+    if not isinstance(windows, dict) or set(windows) - {"fonts"}:
+        raise BridgeError("invalid_webview_config")
+    fonts = windows.get("fonts", {})
+    if not isinstance(fonts, dict) or set(fonts) - {"enabled"}:
+        raise BridgeError("invalid_webview_config")
+    font_fallback = fonts.get("enabled", True)
+    if type(font_fallback) is not bool:
+        raise BridgeError("invalid_webview_config")
     if not isinstance(adapter, dict) or set(adapter) - {"enabled", "display", "hide_event_streams"}:
         raise BridgeError("invalid_audio_config")
     sdeck = compat.get("sdeck", {})
@@ -160,4 +170,5 @@ def load(path: Path) -> Config:
         hide_events,
         webview_sandbox,
         webview_software,
+        font_fallback,
     )

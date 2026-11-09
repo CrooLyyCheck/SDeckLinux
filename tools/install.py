@@ -26,6 +26,7 @@ from deckbridge.compat.sdeck.oauth import portal  # noqa: E402 - standalone repo
 from deckbridge.compat.sdeck.webview import desktop as menu  # noqa: E402
 from deckbridge.compat.sdeck.webview import native_renderer  # noqa: E402
 from deckbridge.compat.sdeck.webview.preferences import with_mode  # noqa: E402
+from deckbridge.compat.windows import fonts  # noqa: E402
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
 
@@ -174,9 +175,16 @@ def install(args: argparse.Namespace) -> None:
             and not manifest.get("portal_choices")
             and not manifest.get("menu_entry")
             and not manifest.get(native_renderer.MANAGED)
+            and not manifest.get(fonts.MANAGED)
         ):
             print("Already deactivated; private config and backups retained.")
             return
+        fonts.restore(
+            data,
+            manifest,
+            lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+            lambda kind, content: private_backup(state, kind, content),
+        )
         native_renderer.restore(
             data,
             manifest,
@@ -310,6 +318,8 @@ deep_links = true
 [compat.sdeck.webview]
 renderer_sandbox = false
 software_rendering = true
+[compat.windows.fonts]
+enabled = true
 """
     config_content = config_original if config_original is not None else cfg.encode()
     mode = getattr(args, "webview_mode", None)
@@ -377,6 +387,14 @@ software_rendering = true
         prefix,
         data,
         effective_config.streamdeck_webview_software,
+        manifest,
+        lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+        lambda kind, content: private_backup(state, kind, content),
+    )
+    fonts.synchronize(
+        prefix,
+        data,
+        effective_config.wine_font_fallback,
         manifest,
         lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
         lambda kind, content: private_backup(state, kind, content),

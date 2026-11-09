@@ -32,6 +32,10 @@ observations returned 1.0 on all seven endpoints. Enumeration does not establish
 control; the Audio Router System setter uses a different boundary.
 No device setter was invoked automatically. Shared Core Audio endpoint support
 is the next implementation boundary; see [ADR 0004](adr/0004-core-audio-endpoint-boundary.md).
+An isolated SHA-256-verified llvm-mingw compiler now builds the optional x64 COM
+probe (`make native-probe`) without system packages. The real Wine run returned
+seven readable endpoints with scalar minimum/maximum 1.0 and zero setters called.
+This validates the development ABI path, not a working control shim.
 
 ## Delivered scope
 

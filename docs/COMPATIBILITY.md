@@ -51,7 +51,7 @@ boundaries are in [STATUS.md](STATUS.md).
 
 | Status | Plugin | Version | Scope / limitations |
 | :---: | --- | --- | --- |
-| 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. Hardware mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
+| 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. Device lists render, but Input/Output endpoint volume is unavailable in Wine 11.20. Hardware mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
 | ⚪ | Elgato Tutorial | `1.0.4.3` | No functional coverage. |
 | ⚪ | Other plugins / versions | — | No universal plugin compatibility or generic Windows Core Audio implementation. |
 

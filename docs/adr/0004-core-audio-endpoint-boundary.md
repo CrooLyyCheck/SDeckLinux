@@ -22,8 +22,10 @@ Match endpoints by exact native identity, not friendly-name guesses. Keep input
 and output write policy separate, preserve channel balance, reject stale handles
 and never retry uncertain writes. Unsupported methods must fail explicitly.
 
-The workstation has host GCC/binutils but lacks Wine development headers and a
-Windows compiler. Use a reproducible isolated native build environment without
-implicit system packages or system DLL replacement. Deploy only after reversible
+The workstation initially lacked Windows development headers/compiler. A pinned,
+hash-verified llvm-mingw bundle now supplies the isolated build environment;
+the read-only x64 COM probe built with warnings-as-errors and read seven endpoints
+under the actual Wine prefix. No system packages or DLL overrides were installed.
+Deploy a control shim only after reversible
 integration and actual-consumer acceptance. Font fallback does not imply device
 control support; no empty shim or success-only API placeholder is provided.

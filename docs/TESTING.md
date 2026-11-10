@@ -159,6 +159,15 @@ The recorded workstation test authorized fixture mutations, then separately
 authorized normal button-driven app control. Preserve that distinction in future
 sessions. No automated real-app or global-volume tests were performed.
 
+## Core Audio endpoint development probes
+
+For the separate Input/Output Device Control boundary, see the
+[Core Audio probe scope](compat/windows/core-audio.md#verification). Its default
+COM run is read-only; simulated notifications change only memory-held models.
+Original-addon fixture setters require separate explicit consent for the null
+output, even when the existing stream fixture was previously approved. Neither
+probe establishes physical IO key/dial acceptance or enables the normal loader.
+
 ## Explicit WebEngine inspector comparison
 
 Do not infer property-inspector support from successful Audio Router RPC. The

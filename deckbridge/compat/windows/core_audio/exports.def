@@ -1,0 +1,5 @@
+LIBRARY deckbridge-core-audio
+EXPORTS
+    DllGetClassObject
+    DllCanUnloadNow
+    db_volume_create

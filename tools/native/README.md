@@ -19,6 +19,7 @@ Git. An equivalent existing compiler can be selected with `NATIVE_CC`.
 
 ```bash
 make native-probe
+make native-core-audio
 ```
 
 Running the probe is a separate explicit real-host step: make bounded verified
@@ -27,3 +28,9 @@ Pass a private output filename as the sole Windows argument. The report has only
 aggregate counts, HRESULT, volume bounds and `setters_called: 0`; it contains no
 endpoint identifiers. Keep reports private. The audited Wine run returned seven
 readable devices, scalar minimum/maximum 1.0 and no setters called.
+
+The experimental library target also builds a **probe-only** Node-API activation
+bootstrap and manifest. It does not install or enable them for Stream Deck.
+`tools/core_audio_smoke.py` explicitly loads the library's real COM factory and
+observes readback/lifetime behavior. With the native backend it reads actual
+levels instead of Wine's constant 1.0. See [scope and limits](../../docs/compat/windows/core-audio.md).

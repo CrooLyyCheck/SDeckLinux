@@ -190,6 +190,20 @@ set `hide_event_streams = false` to show them again. Host audio listing remains
 complete. See the [compatibility notes](compat/plugins/volume-controller.md)
 for supported actions and current limits.
 
+## Native endpoint development
+
+`deckbridge audio devices` reads native input/output endpoint inventory through
+the private daemon. This is separate from application sessions and the existing
+System action. The optional native commands are `audio device-volume DEVICE_ID
+PERCENT` and `audio device-mute DEVICE_ID true|false`. They require independent
+`[audio] allow_output_write` / `allow_input_write` gates (both default false).
+`allowed_devices` can restrict writes to exact current endpoint IDs; empty means
+all otherwise writable endpoints of the enabled direction. Monitor sources stay
+read-only. These settings do not follow from `allow_system_write`.
+
+The original Input/Output Device Control action is not automatically wired to
+this new API yet. See the [experimental Core Audio scope](compat/windows/core-audio.md).
+
 ## Original plugin settings under Wine
 
 The tested Wine setup uses process-local WebEngine options for renderer startup

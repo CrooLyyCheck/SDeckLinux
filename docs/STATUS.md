@@ -1,5 +1,41 @@
 # Status — 2026-11-10, Europe/Warsaw
 
+## Core Audio device-control implementation in progress
+
+The native endpoint backend and private IPC/CLI are implemented:
+`audio.devices.list`, `audio.device.volume`, `audio.device.mute`. Input/output
+writes default off independently of the existing System/application gates.
+Host inventory finds Virtuoso. The installed runtime exposes read-only inventory;
+private configuration remains byte-identical and ordinary plugin behavior is
+preserved. **141 hardware-free tests pass**.
+
+The compiled Windows library implements the MMDevice enumerator factory,
+collection/device/endpoint wrappers, scalar/mute API and exact Wine GUID-to-native
+name mapping. A real COM probe read nine endpoints (including the isolated
+fixture), observed actual levels down to about 60%, passed nine `IUnknown`
+identity checks and balanced unload/refcount checks. Its transport saw 18 reads,
+zero writes and zero rejected peers. A process-local activation context also let
+the original unchanged Volume Controller addon read those actual levels. No
+persistent COM registration or vendor-file change was needed.
+
+Windows callback registration/removal and event delivery are now implemented.
+The latest read-only COM run, after the fixture expired, passed seven identity
+and callback-lifecycle checks with 21 reads and zero writes. A separate run
+delivered a real Windows callback for a memory-only simulated native change;
+no host volume setter was invoked. Hardware-free tests also verify setter context
+GUIDs, default-alias notification, event deduplication and monitor-loss behavior.
+Native reconnect acceptance, production loader/deactivation and ordinary
+physical-key acceptance remain pending. Unsupported methods fail explicitly.
+Details and
+developer commands: [Core Audio scope](compat/windows/core-audio.md).
+After separate explicit user approval, the original unchanged addon passed
+25% → mute → restoration on a fresh isolated null output. Both its Windows
+readback and the native channel/mute snapshot confirmed restoration. The backend
+allowlist admitted only that output; every input and other output was blocked.
+The run made four write requests and 33 reads. Surviving unrelated streams,
+other sinks and default devices were unchanged, and the holder removed the
+fixture afterwards. No automatic hardware/microphone volume test was performed.
+
 ## Manual Detection and device-list follow-up
 
 Read-only calls through the unchanged Windows device addon enumerated seven

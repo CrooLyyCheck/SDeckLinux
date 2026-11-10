@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="SDeckLinux.CoreAudio.Probe" version="1.0.0.0" processorArchitecture="amd64"/>
+  <file name="deckbridge-core-audio.dll">
+    <comClass clsid="{BCDE0395-E52F-467C-8E3D-C4579291692E}" threadingModel="Both"/>
+  </file>
+</assembly>

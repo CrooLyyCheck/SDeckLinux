@@ -92,6 +92,12 @@ Follow-up: list-label rendering uses the shared Wine Arial fallback described in
 Output Device Control labels are visible, but the user reports no device-volume
 change. Wine 11.20's endpoint scalar setter is unimplemented; enumeration is not
 proof of control. See [the shared API boundary](../../adr/0004-core-audio-endpoint-boundary.md).
+An experimental [Core Audio implementation](../windows/core-audio.md) now provides
+native endpoint inventory, a COM scalar/mute boundary and Windows notifications.
+Read-only original-addon and synthetic-event probes pass, as does the separately
+approved original-addon null-output 25%/mute/restore test. Normal application
+activation and physical-device/key acceptance remain pending. This work is
+shared Windows compatibility, not an extension of the plugin's Audio Router API.
 
 - Actual original client, matching pinned build/prefix/socket owner: connected
   and enumerated Helium, Flatpak Fluxer Canary and `DeckBridge Test`.

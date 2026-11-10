@@ -9,44 +9,11 @@ from __future__ import annotations
 import asyncio
 import codecs
 import json
-import os
 
 from ...protocol import BridgeError
+from .command import MAX_GRAPH_BYTES, command
+from .devices import DeviceBackend
 from .model import Session, application_key, balanced_channels, group_sessions
-
-MAX_GRAPH_BYTES = 8 * 1024 * 1024
-
-
-async def command(*argv: str, json_output: bool = True):
-    process = await asyncio.create_subprocess_exec(
-        *argv,
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
-        env=dict(os.environ, LC_ALL="C"),
-    )
-    try:
-        async with asyncio.timeout(5):
-            try:
-                data = await process.stdout.readexactly(MAX_GRAPH_BYTES + 1)
-            except asyncio.IncompleteReadError as error:
-                data = error.partial
-            else:
-                raise BridgeError("audio_snapshot_too_large")
-            await process.wait()
-    except (BridgeError, TimeoutError, asyncio.CancelledError):
-        if process.returncode is None:
-            process.kill()
-        await process.wait()
-        raise
-    if process.returncode:
-        raise BridgeError("audio_backend_failed")
-    if not json_output:
-        return None
-    try:
-        return json.loads(data)
-    except (ValueError, UnicodeError, RecursionError):
-        raise BridgeError("audio_invalid_snapshot") from None
 
 
 def sessions_from_graph(objects: list[dict], pulse: list[dict], cookie: int) -> list[Session]:
@@ -125,10 +92,18 @@ class AudioBackend:
         allowed_apps: tuple[str, ...] = (),
         *,
         allow_system_write: bool = False,
+        allow_output_write: bool = False,
+        allow_input_write: bool = False,
+        allowed_devices: tuple[str, ...] = (),
     ):
         self.allow_write = allow_write
         self.allowed_apps = allowed_apps
         self.allow_system_write = allow_system_write
+        self.devices = DeviceBackend(
+            allow_output=allow_output_write,
+            allow_input=allow_input_write,
+            allowed_devices=allowed_devices,
+        )
         self.sessions: list[Session] = []
         self.applications: list[dict] = []
         self.system = {"volume": 0.0, "mute": False}

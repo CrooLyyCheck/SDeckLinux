@@ -91,6 +91,9 @@ class Server:
                     "audio.sessions.list",
                     "audio.session.volume",
                     "audio.session.mute",
+                    "audio.devices.list",
+                    "audio.device.volume",
+                    "audio.device.mute",
                 }
             ):
                 metadata["capability"] = candidate
@@ -107,6 +110,8 @@ class Server:
                         "application_count": len(self.audio.applications),
                         "write_enabled": self.audio.allow_write,
                         "system_write_enabled": self.audio.allow_system_write,
+                        "device_output_write_enabled": self.audio.devices.allow_output,
+                        "device_input_write_enabled": self.audio.devices.allow_input,
                         "volume_controller": dict(self.audio.adapter_status),
                     }
             else:
@@ -173,6 +178,9 @@ async def serve(config: Config, path: Path) -> None:
             config.audio.allow_write,
             config.audio.allowed_apps,
             allow_system_write=config.audio.allow_system_write,
+            allow_output_write=config.audio.allow_output_write,
+            allow_input_write=config.audio.allow_input_write,
+            allowed_devices=config.audio.allowed_devices,
         )
         if config.audio.enabled
         else None

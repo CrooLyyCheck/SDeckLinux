@@ -54,6 +54,10 @@ WIRE_ERRORS = frozenset(
         "global_audio_control_disabled",
         "audio_default_output_missing",
         "audio_default_output_changed",
+        "audio_device_write_disabled",
+        "audio_device_gone",
+        "audio_device_changed",
+        "audio_device_outcome_unknown",
     }
 )
 

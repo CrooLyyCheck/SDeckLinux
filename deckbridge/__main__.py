@@ -47,11 +47,14 @@ async def main(args: argparse.Namespace) -> dict | None:
             "list": "audio.sessions.list",
             "set-volume": "audio.session.volume",
             "set-mute": "audio.session.mute",
+            "devices": "audio.devices.list",
+            "device-volume": "audio.device.volume",
+            "device-mute": "audio.device.mute",
         }[args.audio_command]
         arguments = {}
-        if args.audio_command == "set-volume":
+        if args.audio_command in {"set-volume", "device-volume"}:
             arguments = {"target": args.target, "volume": args.volume / 100}
-        elif args.audio_command == "set-mute":
+        elif args.audio_command in {"set-mute", "device-mute"}:
             arguments = {"target": args.target, "mute": args.mute == "true"}
         return await call(
             path, "actions.execute", {"capability": capability, "arguments": arguments}
@@ -98,6 +101,15 @@ def entrypoint() -> int:
         sub.add_parser(command).add_argument("value")
     audio = sub.add_parser("audio").add_subparsers(dest="audio_command", required=True)
     audio.add_parser("list")
+    audio.add_parser("devices")
+    device_volume = audio.add_parser("device-volume")
+    device_volume.add_argument("target", help="Exact device ID from audio devices")
+    device_volume.add_argument(
+        "volume", type=float, help="0..100 percent; explicit device write policy"
+    )
+    device_mute = audio.add_parser("device-mute")
+    device_mute.add_argument("target")
+    device_mute.add_argument("mute", choices=("true", "false"))
     volume = audio.add_parser("set-volume")
     volume.add_argument("target", help="session ID or application key from audio list")
     volume.add_argument("volume", type=float, help="0..100 percent; never controls system volume")

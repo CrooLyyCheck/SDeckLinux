@@ -23,6 +23,16 @@ def capabilities(config: Config) -> dict:
             {"name": "desktop.launch", "version": 1, "enabled": bool(config.applications)},
             {"name": "desktop.openUrl", "version": 1, "enabled": bool(config.urls)},
             {"name": "audio.sessions.list", "version": 1, "enabled": config.audio.enabled},
+            {"name": "audio.devices.list", "version": 1, "enabled": config.audio.enabled},
+            *[
+                {
+                    "name": "audio.device." + operation,
+                    "version": 1,
+                    "enabled": config.audio.enabled
+                    and (config.audio.allow_output_write or config.audio.allow_input_write),
+                }
+                for operation in ("volume", "mute")
+            ],
             {
                 "name": "audio.session.volume",
                 "version": 1,
@@ -47,6 +57,15 @@ async def execute(config: Config, params: dict, *, audio: AudioBackend | None = 
     if capability == "oauth.deepLink":
         exact_keys(arguments, {"uri"})
         return await forward(config, arguments["uri"])
+    if capability in {"audio.devices.list", "audio.device.volume", "audio.device.mute"}:
+        if audio is None:
+            raise BridgeError("audio_disabled")
+        if capability == "audio.devices.list":
+            exact_keys(arguments, set())
+            return await audio.devices.snapshot()
+        field = "volume" if capability == "audio.device.volume" else "mute"
+        exact_keys(arguments, {"target", field})
+        return await audio.devices.set_target(arguments["target"], **{field: arguments[field]})
     if capability in {"audio.sessions.list", "audio.session.volume", "audio.session.mute"}:
         if audio is None:
             raise BridgeError("audio_disabled")

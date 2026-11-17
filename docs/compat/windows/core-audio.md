@@ -36,15 +36,42 @@ These limits prevent treating the library as complete Core Audio support.
 
 ## Deployment boundary
 
-Normal installation does **not** register this COM replacement or preload it
-into the original application. The native library is built only by the optional
-developer target. The probe's Node-API bootstrap uses a thread-local activation
-context in its own Windows process; it changes no persistent COM registration.
-It is not a production loader and does not cover other threads automatically.
+The feature defaults off and requires the native audio backend. Once explicitly
+enabled, standard `make install` automatically prepares the isolated pinned
+compiler, builds the library and installs it with a private token and hashes.
+The user daemon serves its bounded endpoint transport; no Node preload,
+debugger or vendor patch is used in ordinary launches.
 
-Before ordinary plugin activation, validate native recovery, implement reversible
-loader/service deployment, and complete actual key/dial acceptance. Native C
-source, compiler and test artifacts are not copied into a Wine system directory.
+The single `InprocServer32` registration lives in the **owned Wine prefix's**
+`HKLM\Software\Classes` hive, not in the Linux system. Wine 11.20's
+[COM implementation](https://github.com/wine-mirror/wine/blob/wine-11.20/dlls/combase/combase.c)
+reads that Machine hive directly; HKCU class overrides do not affect it.
+Only recognized stock Wine values are taken over. A write-ahead journal and
+verified registry backups preserve exact original strings. Opt-out/deactivation
+restores them; custom user registrations are preserved. With the feature enabled,
+an update repairs an exact return to recorded stock values. The library delegates
+to Wine's system32 factory and is never copied over a Wine DLL.
+
+Actual registered COM reads, factory rollback/reapply and callback recovery after
+daemon restart passed without audio setters. The user confirmed output volume
+through both a named Virtuoso endpoint and Default. Input hardware, physical mute
+and dials remain unverified. The probe-only Node activation bootstrap remains
+isolated from ordinary installation.
+
+## Responsiveness
+
+Recent process IDs are lookup hints only: every connection still checks current
+kernel socket ownership, UID, prefix and mapped-library inode/path. A 250 ms read
+snapshot is invalidated by native sink/source/server events. One pending refresh
+coalesces event bursts; write selection and post-write observations bypass this
+cache. Setters preserve all fresh backend checks and never replay on reconnect.
+Default writes fail if the selected endpoint ceases to be the native default.
+
+The read-only COM comparison on 2026-11-17 improved from 3332.3 to 562.1 ms for
+30 reads, reducing native commands from 120 to four. This measures the API probe,
+not physical button latency. After restarting the app to load the repaired COM
+factory, the user confirmed the same output key worked and reacted faster.
+Cached authorization decisions are never used.
 
 ## Verification
 
@@ -53,6 +80,7 @@ make check
 make native-core-audio native-probe
 .venv/bin/python tools/core_audio_smoke.py
 .venv/bin/python tools/core_audio_smoke.py --simulate-notifications
+.venv/bin/python tools/core_audio_smoke.py --installed
 ```
 
 `make check` never runs Wine or audio mutations. The explicit smoke builds on

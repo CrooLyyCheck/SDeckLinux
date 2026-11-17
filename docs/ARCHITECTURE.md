@@ -114,7 +114,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.diagnostics` | Read-only component and HID visibility observations |
 | `deckbridge.backends.audio` | Linux sessions, stable identities, grouping, graph changes and scoped per-stream control |
 | `deckbridge.backends.audio.devices` | Native endpoint inventory, independent input/output gates, exact identity and verified balanced writes |
-| `deckbridge.compat.windows.core_audio` | Experimental COM endpoint wrappers, Windows callbacks, Wine identity translation and bounded native RPC; production activation pending |
+| `deckbridge.compat.windows.core_audio` | Optional shared COM endpoint wrappers, callbacks, Wine identity translation, scoped activation and bounded native RPC |
 | `deckbridge.backends.desktop` | Bounded native named-icon lookup/rendering using existing system GI packages |
 | `deckbridge.compat.plugins.volume_controller` | Observed vendor contract, process authentication, RPC and notifications |
 | `tools/install.py` | Hash-tracked user integration and scoped MIME restoration |
@@ -216,8 +216,8 @@ selects the current default's explicit sink handle and revalidates cookie,
 serial/name/index and unchanged default immediately before control. It never
 sets routing or uses a late-resolved `@DEFAULT_SINK@` target. The separate native
 endpoint backend now implements input/output scalar and mute commands with
-independent default-off gates. Ordinary original-addon launches still use Wine;
-the experimental COM activation and its remaining gates are described in the
+independent default-off gates. Opted-in original-addon launches use the shared
+prefix-local COM boundary; its remaining acceptance limits are described in the
 [Core Audio notes](compat/windows/core-audio.md).
 
 Native icons are backend metadata, not plugin fields. A bounded worker uses

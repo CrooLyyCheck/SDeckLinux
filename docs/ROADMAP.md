@@ -24,8 +24,11 @@ Stage 2 native-GUI/hardware regression and stage 3 Wayland input remain separate
 Stage 4 now includes a shared Core Audio endpoint slice: native device policy and
 scalar/mute operations plus a compiled COM read path are implemented and tested
 as described in [STATUS](STATUS.md). The approved original-addon output fixture
-write test passed. Remaining gates are native reconnect acceptance, reversible
-ordinary activation, and actual IO action
-acceptance. Stock Wine endpoint enumeration does not establish volume support.
+write test passed, as did registered activation, factory rollback and native
+callback recovery after daemon restart. The user confirmed output control for
+both a named endpoint and Default, and faster response after optimization and
+app restart. Remaining gates are input hardware and physical mute/dials; exact
+physical-key latency is unmeasured. Stock Wine endpoint
+enumeration alone does not establish volume support.
 Future capabilities should follow observed consumers, without speculative shims
 or a replacement app/plugin UI. No broad Core Audio compatibility is implied.

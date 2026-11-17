@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 from deckbridge.backends.audio.devices import DeviceBackend
 from deckbridge.compat.windows.core_audio import transport as rpc
+from deckbridge.protocol import BridgeError
 from tests.test_devices import device
 
 
@@ -69,6 +70,21 @@ class CoreAudioDispatchTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CoreAudioSocketTests(unittest.IsolatedAsyncioTestCase):
+    async def request(self, port, operation=0, name=b"speaker", value=0):
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        try:
+            await asyncio.wait_for(reader.readexactly(36), 2)
+            writer.write(
+                rpc.REQUEST.pack(rpc.MAGIC, operation, 0, len(name), value, rpc.NULL_CONTEXT) + name
+            )
+            await writer.drain()
+            return rpc.RESPONSE.unpack(
+                await asyncio.wait_for(reader.readexactly(rpc.RESPONSE.size), 2)
+            )
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -135,6 +151,86 @@ class CoreAudioSocketTests(unittest.IsolatedAsyncioTestCase):
                 self.backend.inventory.assert_not_called()
                 writer.close()
                 await writer.wait_closed()
+
+    async def test_read_cache_expires_and_native_events_invalidate_it(self):
+        with patch.object(rpc, "monotonic", return_value=100) as clock:
+            async with rpc.endpoint_server(Path("/prefix"), self.library, self.backend, port=0) as (
+                port,
+                _,
+            ):
+                self.assertEqual((await self.request(port))[2], 1)
+                self.assertEqual((await self.request(port))[2], 1)
+                self.assertEqual(self.backend.inventory.await_count, 1)
+                self.backend.inventory.return_value = [
+                    dataclasses.replace(device(), channels=(16384, 8192))
+                ]
+                self.queue.put_nowait(b"Event 'change' on sink #12\n")
+                self.assertEqual((await self.request(port))[2], 0.25)
+                self.assertEqual(self.backend.inventory.await_count, 2)
+                clock.return_value += rpc.READ_MAX_AGE + 0.01
+                self.backend.inventory.return_value = [dataclasses.replace(device(), mute=True)]
+                self.assertEqual((await self.request(port))[3], 1)
+                self.assertEqual(self.backend.inventory.await_count, 3)
+
+    async def test_default_write_resolves_fresh_target_and_forces_post_write_read(self):
+        async with rpc.endpoint_server(Path("/prefix"), self.library, self.backend, port=0) as (
+            port,
+            _,
+        ):
+            await self.request(port)  # Warm state must not choose the target of a setter.
+            new_default = dataclasses.replace(device(), id="new-id", name="new-output", index=15)
+            self.backend.inventory.return_value = [
+                dataclasses.replace(device(), default=False),
+                new_default,
+            ]
+
+            async def change(target, **kwargs):
+                self.assertEqual(target, new_default.id)
+                self.assertEqual(kwargs, {"volume": 0.25, "require_default": True})
+                self.backend.inventory.return_value = [
+                    dataclasses.replace(new_default, channels=(16384, 8192))
+                ]
+
+            with patch.object(self.backend, "set_target", side_effect=change) as setter:
+                result = await self.request(port, 1, b"", 0.25)
+                self.assertEqual((result[1], result[2]), (0, 0.25))
+                setter.assert_awaited_once()
+            self.assertEqual(self.backend.inventory.await_count, 3)
+
+    async def test_failed_forced_read_discards_the_previous_cached_state(self):
+        async with rpc.endpoint_server(Path("/prefix"), self.library, self.backend, port=0) as (
+            port,
+            _,
+        ):
+            await self.request(port)
+            self.backend.inventory.side_effect = [
+                BridgeError("audio_backend_disconnected"),
+                [dataclasses.replace(device(), mute=True)],
+            ]
+            self.assertEqual((await self.request(port, 1, value=0.25))[1], rpc.E_FAIL)
+            self.assertEqual((await self.request(port))[3], 1)
+            self.assertEqual(self.backend.inventory.await_count, 3)
+
+    async def test_native_event_burst_uses_one_snapshot(self):
+        async with rpc.endpoint_server(Path("/prefix"), self.library, self.backend, port=0) as (
+            port,
+            _,
+        ):
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            await asyncio.wait_for(reader.readexactly(36), 2)
+            writer.write(rpc.REQUEST.pack(rpc.MAGIC, 3, 0, 7, 0, rpc.NULL_CONTEXT) + b"speaker")
+            await writer.drain()
+            await asyncio.wait_for(reader.readexactly(rpc.RESPONSE.size), 2)
+            self.backend.inventory.return_value = [dataclasses.replace(device(), mute=True)]
+            for _ in range(100):
+                self.queue.put_nowait(b"Event 'change' on sink #12\n")
+            result = rpc.RESPONSE.unpack(
+                await asyncio.wait_for(reader.readexactly(rpc.RESPONSE.size), 2)
+            )
+            self.assertEqual(result[3], 1)
+            self.assertEqual(self.backend.inventory.await_count, 2)
+            writer.close()
+            await writer.wait_closed()
 
     async def test_oversized_request_is_closed_without_dispatch(self):
         async with rpc.endpoint_server(Path("/prefix"), self.library, self.backend, port=0) as (
@@ -271,15 +367,47 @@ class CoreAudioPeerTests(unittest.TestCase):
             (pid / "environ").write_bytes(b"WINEPREFIX=/prefix\0")
             maps = f"1000-2000 r--p 00000000 00:00 {library.stat().st_ino} {library}\n"
             (pid / "maps").write_text(maps)
+            hints = rpc.PeerHints()
             self.assertTrue(
-                rpc.authorized_peer(Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc)
+                rpc.authorized_peer(
+                    Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc, hints=hints
+                )
             )
+            # A remembered candidate avoids a full process scan, but is revalidated below.
+            with patch.object(Path, "glob", side_effect=AssertionError("unnecessary process scan")):
+                self.assertTrue(
+                    rpc.authorized_peer(
+                        Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc, hints=hints
+                    )
+                )
             self.assertFalse(
-                rpc.authorized_peer(Path("/other"), library, ("127.0.0.1", 0x1234), 0x2345, proc)
+                rpc.authorized_peer(
+                    Path("/other"), library, ("127.0.0.1", 0x1234), 0x2345, proc, hints=hints
+                )
             )
             (pid / "maps").write_text(maps.replace(str(library), str(root / "other.dll")))
             self.assertFalse(
-                rpc.authorized_peer(Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc)
+                rpc.authorized_peer(
+                    Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc, hints=hints
+                )
+            )
+            (pid / "maps").write_text(maps)
+            (pid / "fd/3").unlink()
+            (pid / "fd/3").symlink_to("socket:[999]")
+            self.assertFalse(
+                rpc.authorized_peer(
+                    Path("/prefix"), library, ("127.0.0.1", 0x1234), 0x2345, proc, hints=hints
+                )
+            )
+
+    def test_peer_candidates_are_bounded_and_most_recent_first(self):
+        hints = rpc.PeerHints()
+        for pid in range(32):
+            hints.remember(str(pid))
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(
+                [p.name for p in hints.candidates(Path(folder))],
+                [str(pid) for pid in range(31, 15, -1)],
             )
 
     def test_unsafe_token_is_preserved_and_rejected(self):

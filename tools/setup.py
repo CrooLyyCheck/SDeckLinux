@@ -11,6 +11,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from deckbridge.config import load  # noqa: E402
+from deckbridge.protocol import BridgeError  # noqa: E402
 
 
 def setup(mode: str | None = None) -> int:
@@ -39,6 +43,21 @@ def setup(mode: str | None = None) -> int:
         print("Installing SDeckLinux, including menu integration and built-in Wine fixes...")
         print("The default Wine mode uses software rendering with the renderer sandbox off.")
         subprocess.run(["make", "setup"], cwd=ROOT, check=True, timeout=600)  # noqa: S603,S607
+        config_path = (
+            Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+            / "deckbridge/config.toml"
+        )
+        if config_path.exists():
+            if load(config_path).windows_core_audio:
+                subprocess.run(  # noqa: S603 - pinned, isolated compiler; no system installation
+                    [sys.executable, str(ROOT / "tools/prepare_native.py")],
+                    cwd=ROOT,
+                    check=True,
+                    timeout=180,
+                )
+                subprocess.run(  # noqa: S603,S607 - optional source build, fixed target
+                    ["/usr/bin/make", "native-core-audio"], cwd=ROOT, check=True, timeout=120
+                )
         command = [
             sys.executable,
             str(ROOT / "tools/install.py"),
@@ -53,7 +72,7 @@ def setup(mode: str | None = None) -> int:
             "Installed. Quit any running Stream Deck, then open Stream Deck (Wine) from the menu."
         )
         return 0
-    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+    except (RuntimeError, OSError, subprocess.SubprocessError, BridgeError) as exc:
         message = (
             str(exc)
             if isinstance(exc, RuntimeError)

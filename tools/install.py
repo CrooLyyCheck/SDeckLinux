@@ -12,12 +12,15 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+NATIVE_LIBRARY = ROOT / ".local/native/deckbridge-core-audio.dll"
 DESKTOP = "io.deckbridge.UrlHandler.desktop"
 MIME = "x-scheme-handler/streamdeck"
 sys.path.insert(0, str(ROOT))
@@ -27,6 +30,7 @@ from deckbridge.compat.sdeck.webview import desktop as menu  # noqa: E402
 from deckbridge.compat.sdeck.webview import native_renderer  # noqa: E402
 from deckbridge.compat.sdeck.webview.preferences import with_mode  # noqa: E402
 from deckbridge.compat.windows import fonts  # noqa: E402
+from deckbridge.compat.windows.core_audio import activation  # noqa: E402
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
 
@@ -176,9 +180,16 @@ def install(args: argparse.Namespace) -> None:
             and not manifest.get("menu_entry")
             and not manifest.get(native_renderer.MANAGED)
             and not manifest.get(fonts.MANAGED)
+            and not manifest.get(activation.MANAGED)
         ):
             print("Already deactivated; private config and backups retained.")
             return
+        activation.restore(
+            data,
+            manifest,
+            lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+            lambda kind, content: private_backup(state, kind, content),
+        )
         fonts.restore(
             data,
             manifest,
@@ -230,11 +241,48 @@ def install(args: argparse.Namespace) -> None:
     executable = prefix / "drive_c/Program Files/Elgato/StreamDeck/StreamDeck.exe"
     if not executable.is_file() or not (prefix / "system.reg").is_file():
         raise RuntimeError("Expected existing Stream Deck installation not found")
+    existing_config_path = config / "deckbridge/config.toml"
+    if existing_config_path.is_symlink():
+        raise RuntimeError("Config symlink refused")
+    core_audio_enabled = (
+        load(existing_config_path).windows_core_audio if existing_config_path.exists() else False
+    )
     files = {
         runtime / "deckbridge" / p.relative_to(ROOT / "deckbridge"): (p.read_bytes(), 0o600)
         for p in sorted((ROOT / "deckbridge").rglob("*"))
         if p.is_file() and p.suffix in {".py", ".json"}
     }
+    if core_audio_enabled:
+        source = NATIVE_LIBRARY
+        info = source.lstat()
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or info.st_mode & 0o022
+            or not 0 < info.st_size <= 4 * 1024 * 1024
+        ):
+            raise RuntimeError("Unsafe native Core Audio build artifact")
+        content = source.read_bytes()
+        if len(content) > 4 * 1024 * 1024 or not content.startswith(b"MZ"):
+            raise RuntimeError("Expected native Core Audio build artifact")
+        library = activation.library_path(data)
+        files[library] = (content, 0o600)
+        token = library.with_suffix(".token")
+        if token.exists() or token.is_symlink():
+            info = token.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or info.st_mode & 0o077
+                or info.st_size != 32
+            ):
+                raise RuntimeError("Unsafe native Core Audio token")
+            token_content = token.read_bytes()
+            if len(token_content) != 32:
+                raise RuntimeError("Native Core Audio token changed")
+        else:
+            token_content = secrets.token_bytes(32)
+        files[token] = (token_content, 0o600)
     dependencies = ROOT / ".local/runtime-dependencies"
     if not (dependencies / "websockets/__init__.py").is_file():
         raise RuntimeError("Run make setup to prepare the hash-verified runtime dependency")
@@ -320,6 +368,8 @@ renderer_sandbox = false
 software_rendering = true
 [compat.windows.fonts]
 enabled = true
+[compat.windows.core_audio]
+enabled = false
 """
     config_content = config_original if config_original is not None else cfg.encode()
     mode = getattr(args, "webview_mode", None)
@@ -409,10 +459,28 @@ enabled = true
         atomic(state / "backups/mimeapps-before-deckbridge", text.encode())
         atomic(manifest_path, json.dumps(manifest, indent=2).encode())
     for path, (content, mode) in files.items():
-        atomic(path, content, mode)
+        if (
+            path.is_symlink()
+            or not path.exists()
+            or path.read_bytes() != content
+            or stat.S_IMODE(path.stat().st_mode) != mode
+        ):
+            atomic(path, content, mode)
         manifest["files"][str(path)] = digest(content)
         atomic(manifest_path, json.dumps(manifest, indent=2).encode())
+    if effective_config.windows_core_audio != core_audio_enabled:
+        raise RuntimeError("Core Audio configuration changed during installation")
+    activation.synchronize(
+        prefix,
+        data,
+        effective_config.windows_core_audio,
+        manifest,
+        lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+        lambda kind, content: private_backup(state, kind, content),
+    )
     for obsolete in obsolete_files:
+        if str(obsolete) not in manifest["files"]:
+            continue  # A user-modified COM registration transferred these files to the user.
         obsolete.unlink(missing_ok=True)
         del manifest["files"][str(obsolete)]
     atomic(manifest_path, json.dumps(manifest, indent=2).encode())

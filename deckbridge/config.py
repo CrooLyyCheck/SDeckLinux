@@ -59,6 +59,7 @@ class Config:
     streamdeck_webview_sandbox: bool = False
     streamdeck_webview_software: bool = True
     wine_font_fallback: bool = True
+    windows_core_audio: bool = False
 
 
 def absolute(value: object) -> Path:
@@ -130,7 +131,7 @@ def load(path: Path) -> Config:
         raise BridgeError("invalid_audio_config")
     adapter = compat.get("volume_controller", {})
     windows = compat.get("windows", {})
-    if not isinstance(windows, dict) or set(windows) - {"fonts"}:
+    if not isinstance(windows, dict) or set(windows) - {"fonts", "core_audio"}:
         raise BridgeError("invalid_webview_config")
     fonts = windows.get("fonts", {})
     if not isinstance(fonts, dict) or set(fonts) - {"enabled"}:
@@ -138,6 +139,12 @@ def load(path: Path) -> Config:
     font_fallback = fonts.get("enabled", True)
     if type(font_fallback) is not bool:
         raise BridgeError("invalid_webview_config")
+    core_audio = windows.get("core_audio", {})
+    if not isinstance(core_audio, dict) or set(core_audio) - {"enabled"}:
+        raise BridgeError("invalid_audio_config")
+    core_audio_enabled = core_audio.get("enabled", False)
+    if type(core_audio_enabled) is not bool:
+        raise BridgeError("invalid_audio_config")
     if not isinstance(adapter, dict) or set(adapter) - {"enabled", "display", "hide_event_streams"}:
         raise BridgeError("invalid_audio_config")
     sdeck = compat.get("sdeck", {})
@@ -181,6 +188,7 @@ def load(path: Path) -> Config:
         or (write and not enabled)
         or (system_write and not enabled)
         or ((input_write or output_write) and not enabled)
+        or (core_audio_enabled and not enabled)
         or not isinstance(allowed_devices, list)
         or any(not isinstance(v, str) or not v or len(v) > 512 for v in allowed_devices)
     ):
@@ -207,4 +215,5 @@ def load(path: Path) -> Config:
         webview_sandbox,
         webview_software,
         font_fallback,
+        core_audio_enabled,
     )

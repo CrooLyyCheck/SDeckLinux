@@ -12,12 +12,14 @@ The audited isolated toolchain is upstream
 - Size: 84,104,244 bytes
 - SHA-256: `919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926`
 
-Download from that release, verify the size/hash, and extract under
-`.local/toolchains/` with safe archive extraction. No system installation or Wine
+`python3 tools/prepare_native.py` downloads that fixed release, checks its size
+and SHA-256 and safely extracts it under `.local/toolchains/`. This preparation
+is automatic in standard installation when Core Audio is opted in. No system installation or Wine
 DLL override is needed. The toolchain/archive and compiled PE remain ignored by
 Git. An equivalent existing compiler can be selected with `NATIVE_CC`.
 
 ```bash
+python3 tools/prepare_native.py
 make native-probe
 make native-core-audio
 ```

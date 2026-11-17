@@ -1,13 +1,60 @@
-# Status — 2026-11-10, Europe/Warsaw
+# Status — 2026-11-17, Europe/Warsaw
 
-## Core Audio device-control implementation in progress
+## Installed Core Audio controls and latency follow-up
+
+The shared Core Audio boundary is integrated into the standard installer and
+user daemon behind `[compat.windows.core_audio].enabled`, default off. Opted-in
+updates automatically prepare the hash-pinned isolated compiler, build the DLL,
+install hash-tracked private files and manage the single prefix-local COM factory.
+The original application, plugin and Wine DLL files remain unchanged. The local
+preference is enabled for button-driven input/output control; that does not
+authorize automatic hardware/microphone mutation tests.
+
+Wine 11.20's combase opens the prefix's Machine Classes hive directly, so HKCU
+registration was ineffective. Installation now journals the exact stock
+`InprocServer32` strings in that owned prefix and restores them on opt-out or
+deactivation. A real rollback probe observed the original Wine factory again;
+reapplying the bridge restored actual native readback. A registered COM probe
+passed identity/callback/lifetime checks, and restarting the installed daemon
+delivered a real Windows resynchronization notification with no setters.
+Unknown custom registrations remain preserved. An enabled update repairs a
+registration only if it exactly matches the recorded stock values again.
+
+The user confirmed Output Device Control works with both a selected Virtuoso
+output and Default, then reported slow response compared with Auto Detection.
+Profiling found repeated whole-process searches and repeated native inventories.
+The fix keeps 16 candidate process IDs but rechecks socket ownership, UID, exact
+prefix and mapped DLL for every connection. Read snapshots expire after 250 ms
+and native events invalidate them earlier; event bursts are coalesced. Setters
+force fresh lookup/readback and retain backend identity, permission and balance
+checks. Default writes additionally require the selected endpoint to remain default.
+Unchanged installed files retain their inodes, preserving mapped-library identity
+across Python-only updates.
+
+On the same real x64 COM read-only probe, disabling these optimizations took
+3332.3 ms for 30 reads/120 native commands; enabling them took 562.1 ms for the
+same 30 reads with four commands. Median peer verification fell from 82.9 to
+2.7 ms. These are aggregate probe timings, not measured physical-key latency.
+The Windows synthetic-event probe also passed with zero host setters.
+After the cache changes, the unchanged original addon again passed 25%/mute/restore
+on the isolated null output (four writes, 42 reads), preserving unrelated audio.
+The fixture was removed. Registered reads and daemon-restart callback recovery
+also passed after installation; private config and unchanged DLL/token inodes
+were preserved. **163 hardware-free tests pass**. An already running plugin had
+kept Wine's stock factory after the registration repair and sent no writes to
+the bridge. After the required one-time app restart, the user confirmed that the
+same Output Device Control key worked and responded faster. Exact physical-key
+latency was not measured. Input-device writes, physical mute and dials remain
+separate acceptance boundaries.
+
+## Initial Core Audio implementation and isolated output acceptance
 
 The native endpoint backend and private IPC/CLI are implemented:
 `audio.devices.list`, `audio.device.volume`, `audio.device.mute`. Input/output
 writes default off independently of the existing System/application gates.
-Host inventory finds Virtuoso. The installed runtime exposes read-only inventory;
-private configuration remains byte-identical and ordinary plugin behavior is
-preserved. **141 hardware-free tests pass**.
+The initial inventory found Virtuoso. At this stage the installed runtime exposed
+read-only inventory, with private configuration byte-identical. That milestone
+had **141 hardware-free tests**; installed integration is recorded above.
 
 The compiled Windows library implements the MMDevice enumerator factory,
 collection/device/endpoint wrappers, scalar/mute API and exact Wine GUID-to-native
@@ -24,10 +71,9 @@ and callback-lifecycle checks with 21 reads and zero writes. A separate run
 delivered a real Windows callback for a memory-only simulated native change;
 no host volume setter was invoked. Hardware-free tests also verify setter context
 GUIDs, default-alias notification, event deduplication and monitor-loss behavior.
-Native reconnect acceptance, production loader/deactivation and ordinary
-physical-key acceptance remain pending. Unsupported methods fail explicitly.
-Details and
-developer commands: [Core Audio scope](compat/windows/core-audio.md).
+Unsupported methods fail explicitly. The later deployment and reconnect results
+are recorded above. Details and developer commands:
+[Core Audio scope](compat/windows/core-audio.md).
 After separate explicit user approval, the original unchanged addon passed
 25% → mute → restoration on a fresh isolated null output. Both its Windows
 readback and the native channel/mute snapshot confirmed restoration. The backend
@@ -61,7 +107,8 @@ names in normal use and supplied the Output Device Control panel. The normal
 process has no debugger, Qt Quick trial or diagnostic flags. Manual audio actions
 and individual input-list visual acceptance remain separate gates.
 
-Output Device Control still does nothing, including with Virtuoso selected. In
+Before the Core Audio implementation, Output Device Control did nothing,
+including with Virtuoso selected. In
 Wine 11.20, `AEV_SetMasterVolumeLevelScalar` returns `E_NOTIMPL`, its getter returns
 constant 1.0, and mute is stored only in the wrapper. Read-only original-addon
 observations returned 1.0 on all seven endpoints. Enumeration does not establish
@@ -88,7 +135,7 @@ see the follow-up evidence below.
 Acceptance is bounded: CLI volume/mute/restore and physical 100% → 95% passed on
 the isolated native fixture. Hardware mute, manual actions, dials and other device
 models remain untested. New bridge-native GUI actions and Wayland input remain
-separate roadmap gates. No generic Windows Core Audio translation is claimed.
+separate roadmap gates. Full Windows Core Audio compatibility is not claimed.
 
 ## Built-in Wine startup and menu integration
 

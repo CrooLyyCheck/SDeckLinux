@@ -157,6 +157,24 @@ class DeviceWriteTests(unittest.IsolatedAsyncioTestCase):
                 await backend.set_target(before.id, volume=0.25)
             self.assertEqual(cmd.await_count, 1)
 
+    async def test_default_alias_cannot_write_a_former_default_output(self):
+        before = device()
+        former = dataclasses.replace(before, default=False)
+        for snapshots in ([former], [before, former]):
+            backend = DeviceBackend(allow_output=True)
+            with (
+                patch.object(
+                    backend,
+                    "inventory",
+                    new_callable=AsyncMock,
+                    side_effect=[[d] for d in snapshots],
+                ),
+                patch("deckbridge.backends.audio.devices.command", new_callable=AsyncMock) as cmd,
+            ):
+                with self.assertRaisesRegex(BridgeError, "audio_device_changed"):
+                    await backend.set_target(before.id, volume=0.25, require_default=True)
+                cmd.assert_not_called()
+
     async def test_monitor_and_unallowlisted_targets_cannot_be_written(self):
         for before, allowed in (
             (dataclasses.replace(device(), monitor=True), ()),

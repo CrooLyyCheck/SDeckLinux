@@ -1,6 +1,6 @@
 # Compatibility
 
-Experimental. Status as of **2026-11-10**, on **Fedora 44, KDE Plasma 6.7.5 /
+Experimental. Status as of **2026-11-17**. The audited baseline is **Fedora 44, KDE Plasma 6.7.5 /
 Wayland, Wine 11.20 Staging, Stream Deck 7.6.1.23033, PipeWire 1.6.10 /
 WirePlumber 0.5.18, and Stream Deck MK.2**. Other environments are untested.
 
@@ -51,9 +51,9 @@ boundaries are in [STATUS.md](STATUS.md).
 
 | Status | Plugin | Version | Scope / limitations |
 | :---: | --- | --- | --- |
-| 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. Device lists render, but Input/Output endpoint control is unavailable in normal launches. A shared [Core Audio prototype](compat/windows/core-audio.md) passed isolated output volume/mute/restore through the original addon; ordinary activation remains pending. Hardware mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
+| 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. With optional shared [Core Audio support](compat/windows/core-audio.md), Output Device Control works for a selected Virtuoso output and Default; isolated volume/mute/restore passed. Faster response confirmed by the user after optimization/restart; exact timing measured at the API boundary. Input hardware, physical mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
 | ⚪ | Elgato Tutorial | `1.0.4.3` | No functional coverage. |
-| ⚪ | Other plugins / versions | — | No universal plugin compatibility or generic Windows Core Audio implementation. |
+| ⚪ | Other plugins / versions | — | Other consumers of the shared Core Audio boundary and other plugin versions require separate acceptance. |
 
 Volume Controller uses an exact version/hash contract. Direct PipeWire streams
 without Pulse handles are read-only. Settings UI requires the

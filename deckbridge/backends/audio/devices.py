@@ -132,17 +132,23 @@ class DeviceBackend:
             "input_write_enabled": self.allow_input,
         }
 
-    async def set_target(self, target: str, *, volume=None, mute=None) -> dict:
+    async def set_target(
+        self, target: str, *, volume=None, mute=None, require_default: bool = False
+    ) -> dict:
         if not isinstance(target, str) or not target:
             raise BridgeError("invalid_params")
         if not (self.allow_input or self.allow_output):
             raise BridgeError("audio_device_write_disabled")
         if (volume is None) == (mute is None) or (mute is not None and type(mute) is not bool):
             raise BridgeError("invalid_params")
+        if type(require_default) is not bool:
+            raise BridgeError("invalid_params")
         async with self.lock:
             device = next((d for d in await self.inventory() if d.id == target), None)
             if device is None:
                 raise BridgeError("audio_device_gone")
+            if require_default and not device.default:
+                raise BridgeError("audio_device_changed")
             if (
                 not (self.allow_output if device.direction == "output" else self.allow_input)
                 or device.monitor
@@ -151,7 +157,11 @@ class DeviceBackend:
                 raise BridgeError("audio_device_write_disabled")
             values = balanced_channels(device.channels, volume) if volume is not None else []
             current = next((d for d in await self.inventory() if d.id == target), None)
-            if current is None or current.identity != device.identity:
+            if (
+                current is None
+                or current.identity != device.identity
+                or (require_default and not current.default)
+            ):
                 raise BridgeError("audio_device_changed")
             # A concurrent desktop volume change must not be overwritten with an old balance.
             if current.channels != device.channels or current.mute != device.mute:

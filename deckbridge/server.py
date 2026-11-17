@@ -53,6 +53,11 @@ class Server:
     def __init__(self, config: Config, audio: AudioBackend | None = None):
         self.config = config
         self.audio = audio
+        self.core_audio_status = {
+            "enabled": config.windows_core_audio,
+            "listening": False,
+            "error": "",
+        }
         self.clients: set[asyncio.Task] = set()
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -113,6 +118,7 @@ class Server:
                         "device_output_write_enabled": self.audio.devices.allow_output,
                         "device_input_write_enabled": self.audio.devices.allow_input,
                         "volume_controller": dict(self.audio.adapter_status),
+                        "windows_core_audio": dict(self.core_audio_status),
                     }
             else:
                 result = await execute(self.config, request.params, audio=self.audio)
@@ -191,6 +197,14 @@ async def serve(config: Config, path: Path) -> None:
         server = await asyncio.start_unix_server(handler.handle, path=str(path), limit=MAX_FRAME)
         if audio:
             background.append(asyncio.create_task(audio.run()))
+            if config.windows_core_audio:
+                from .compat.windows.core_audio.runtime import run as run_core_audio
+
+                background.append(
+                    asyncio.create_task(
+                        run_core_audio(config, audio.devices, handler.core_audio_status)
+                    )
+                )
             if config.volume_controller:
                 from .compat.plugins.volume_controller.server import run_adapter
 

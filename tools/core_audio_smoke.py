@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 from deckbridge.backends.audio.devices import DeviceBackend  # noqa: E402
 from deckbridge.client import call  # noqa: E402
 from deckbridge.compat.plugins.volume_controller.peer import verify_plugin  # noqa: E402
+from deckbridge.compat.windows.core_audio.runtime import installed_library  # noqa: E402
 from deckbridge.compat.windows.core_audio.transport import endpoint_server  # noqa: E402
 from deckbridge.compat.windows.registry import owned_prefix, reg, snapshot  # noqa: E402
 from deckbridge.config import default_config, load, socket_path  # noqa: E402
@@ -30,14 +31,18 @@ from tools.audio_smoke import APPLICATION, pulse_state, state_directory, verify_
 from tools.install import atomic, private_backup  # noqa: E402
 
 
-async def observe(*, _backend=None, _on_ready=None) -> dict:
+async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
     config = load(default_config())
     home = Path.home()
     data = Path(os.environ.get("XDG_DATA_HOME", home / ".local/share"))
     state = Path(os.environ.get("XDG_STATE_HOME", home / ".local/state")) / "deckbridge"
     if not owned_prefix(config.prefix, data):
         raise RuntimeError("Unsupported Wine prefix")
-    library = ROOT / ".local/native/deckbridge-core-audio.dll"
+    library = (
+        installed_library(data, state)
+        if installed
+        else ROOT / ".local/native/deckbridge-core-audio.dll"
+    )
     probe = ROOT / ".local/native/core_audio_probe.exe"
     for path in (library, probe):
         info = path.lstat()
@@ -67,7 +72,7 @@ async def observe(*, _backend=None, _on_ready=None) -> dict:
                 str(probe),
                 "Z:" + str(report),
                 "Z:" + str(library),
-                *(["--wait-notify"] if _on_ready else []),
+                *(["--registered"] if installed else ["--wait-notify"] if _on_ready else []),
                 env=dict(
                     os.environ,
                     WINEPREFIX=str(config.prefix),
@@ -111,7 +116,9 @@ async def observe(*, _backend=None, _on_ready=None) -> dict:
                 atomic,
                 directory
                 / (
-                    "core-audio-simulated-notifications.json"
+                    "core-audio-installed-com.json"
+                    if installed
+                    else "core-audio-simulated-notifications.json"
                     if _on_ready
                     else "core-audio-com-bridge.json"
                 ),
@@ -358,16 +365,19 @@ if __name__ == "__main__":
     parser.add_argument("--exercise-fixture", action="store_true")
     parser.add_argument("--approved", action="store_true")
     parser.add_argument("--simulate-notifications", action="store_true")
+    parser.add_argument("--installed", action="store_true")
     args = parser.parse_args()
     if args.simulate_notifications and (args.exercise_fixture or args.approved):
         parser.error("Simulated notifications cannot be combined with fixture writes")
+    if args.installed and (args.simulate_notifications or args.exercise_fixture or args.approved):
+        parser.error("Installed registration observation must be read-only")
     try:
         result = asyncio.run(
             observe_notification_contract()
             if args.simulate_notifications
             else exercise_original_addon(args.approved)
             if args.exercise_fixture
-            else observe()
+            else observe(installed=args.installed)
         )
         print(json.dumps(result, indent=2))
     except (RuntimeError, OSError, ValueError, TimeoutError, BridgeError):

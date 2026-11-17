@@ -90,6 +90,45 @@ class InstallTests(unittest.TestCase):
             self.assertFalse(synchronize.call_args.args[2])
             self.assertEqual(path.read_bytes(), content)
 
+    def test_opt_in_core_audio_is_installed_owned_updated_and_removed_in_one_flow(self):
+        install(self.args)
+        path = self.config / "deckbridge/config.toml"
+        content = (
+            path.read_bytes().replace(
+                b"[compat.windows.core_audio]\nenabled = false",
+                b"[compat.windows.core_audio]\nenabled = true",
+            )
+            + b"\n[audio]\nenabled=true\n"
+        )
+        path.write_bytes(content)
+        artifact = self.home / "compiled.dll"
+        artifact.write_bytes(b"MZ synthetic native artifact")
+        library = self.home / "data/deckbridge/runtime/native/deckbridge-core-audio.dll"
+        with (
+            patch("tools.install.NATIVE_LIBRARY", artifact),
+            patch("tools.install.activation.synchronize") as synchronize,
+            patch("tools.install.activation.restore") as restore,
+        ):
+            install(self.args)
+            self.assertTrue(synchronize.call_args.args[2])
+            self.assertEqual(library.read_bytes(), artifact.read_bytes())
+            token = library.with_suffix(".token").read_bytes()
+            self.assertEqual(len(token), 32)
+            library_inode = library.stat().st_ino
+            token_inode = library.with_suffix(".token").stat().st_ino
+            install(self.args)
+            self.assertEqual(library.stat().st_ino, library_inode)
+            self.assertEqual(library.with_suffix(".token").stat().st_ino, token_inode)
+            self.assertEqual(library.with_suffix(".token").read_bytes(), token)
+            self.assertEqual(path.read_bytes(), content)
+            self.assertFalse(load(path).audio.allow_output_write)
+            self.assertFalse(load(path).audio.allow_input_write)
+            self.args.deactivate = True
+            install(self.args)
+            restore.assert_called_once()
+            self.assertFalse(library.exists())
+            self.assertFalse(library.with_suffix(".token").exists())
+
     def test_native_renderer_is_builtin_respects_opt_out_and_restores_on_deactivation(self):
         with (
             patch("tools.install.native_renderer.synchronize") as synchronize,

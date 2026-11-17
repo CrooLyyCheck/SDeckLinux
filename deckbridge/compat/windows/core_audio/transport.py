@@ -9,8 +9,11 @@ import re
 import secrets
 import stat
 import struct
+import threading
+from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import monotonic
 
 from ....backends.audio.devices import DeviceBackend
 from ....protocol import BridgeError
@@ -19,7 +22,31 @@ REQUEST = struct.Struct("<4sHHIf16s")
 RESPONSE = struct.Struct("<4sIfII64f16s")
 MAGIC = b"DBA2"
 NULL_CONTEXT = bytes(16)
+READ_MAX_AGE = 0.25  # Native events invalidate earlier; setters always verify fresh state.
 E_FAIL, E_INVALIDARG, E_ACCESSDENIED = 0x80004005, 0x80070057, 0x80070005
+
+
+class PeerHints:
+    """Bounded candidate ordering, never a cache of authorization decisions."""
+
+    def __init__(self):
+        self._pids = deque(maxlen=16)
+        self._lock = threading.Lock()
+
+    def candidates(self, proc_root: Path):
+        with self._lock:
+            known = tuple(self._pids)
+        for pid in known:
+            yield proc_root / pid
+        for proc in proc_root.glob("[0-9]*"):
+            if proc.name not in known:
+                yield proc
+
+    def remember(self, pid: str):
+        with self._lock:
+            if pid in self._pids:
+                self._pids.remove(pid)
+            self._pids.appendleft(pid)
 
 
 def private_token(library: Path) -> bytes:
@@ -47,7 +74,13 @@ def private_token(library: Path) -> bytes:
 
 
 def authorized_peer(
-    prefix: Path, library: Path, address: tuple, port: int, proc_root: Path = Path("/proc")
+    prefix: Path,
+    library: Path,
+    address: tuple,
+    port: int,
+    proc_root: Path = Path("/proc"),
+    *,
+    hints: PeerHints | None = None,
 ) -> bool:
     if address[0] != "127.0.0.1" or library.is_symlink():
         return False
@@ -67,7 +100,8 @@ def authorized_peer(
             inodes.add(f"socket:[{fields[9]}]")
     if not inodes:
         return False
-    for proc in proc_root.glob("[0-9]*"):
+    candidates = hints.candidates(proc_root) if hints is not None else proc_root.glob("[0-9]*")
+    for proc in candidates:
         try:
             if proc.stat().st_uid != os.getuid():
                 continue
@@ -84,6 +118,8 @@ def authorized_peer(
                     continue
                 path = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), fields[5])
                 if path == str(library):
+                    if hints is not None:
+                        hints.remember(proc.name)
                     return True
         except (FileNotFoundError, PermissionError, ProcessLookupError):
             continue
@@ -104,7 +140,7 @@ def response(status: int, device=None, context=NULL_CONTEXT) -> bytes:
 
 
 async def dispatch(
-    backend: DeviceBackend, header: bytes, name_bytes: bytes, on_change=None
+    backend: DeviceBackend, header: bytes, name_bytes: bytes, on_change=None, snapshot=None
 ) -> bytes:
     try:
         magic, operation, flow, length, value, context = REQUEST.unpack(header)
@@ -125,7 +161,11 @@ async def dispatch(
         ):
             return response(E_INVALIDARG)
         direction = "output" if flow == 0 else "input"
-        devices = await backend.inventory()
+        devices = (
+            await snapshot(force=operation in (1, 2))
+            if snapshot is not None
+            else await backend.inventory()
+        )
         device = next(
             (
                 d
@@ -138,13 +178,18 @@ async def dispatch(
             return response(E_FAIL)
         if operation in (1, 2):
             await backend.set_target(
-                device.id, **({"volume": value} if operation == 1 else {"mute": bool(value)})
+                device.id,
+                **({"volume": value} if operation == 1 else {"mute": bool(value)}),
+                **({"require_default": True} if not name else {}),
             )
-            device = next((d for d in await backend.inventory() if d.id == device.id), None)
+            devices = (
+                await snapshot(force=True) if snapshot is not None else await backend.inventory()
+            )
+            device = next((d for d in devices if d.id == device.id), None)
             if device is None:
                 return response(E_FAIL)
             if on_change is not None:
-                await on_change(device, context)
+                await on_change(device, context, devices)
         return response(0, device, context if operation in (1, 2) else NULL_CONTEXT)
     except BridgeError as error:
         return response(E_ACCESSDENIED if error.code == "audio_device_write_disabled" else E_FAIL)
@@ -153,14 +198,34 @@ async def dispatch(
 
 
 @asynccontextmanager
-async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *, port=1845):
+async def endpoint_server(
+    prefix: Path, library: Path, backend: DeviceBackend, *, port=1845, on_failure=None
+):
     clients = set()
     handlers = set()
     subscriptions = {}
     transaction = asyncio.Lock()
+    peer_hints = PeerHints()
+    revision = 0
+    cached_revision, cached_at, cached_devices = -1, 0.0, None
+    refresh_needed = asyncio.Event()
     stats = {"reads": 0, "writes": 0, "rejected": 0, "subscribers": 0, "monitor_failed": False}
     library = await asyncio.to_thread(library.resolve, strict=True)
     token = await asyncio.to_thread(private_token, library)
+
+    async def snapshot(*, force=False):
+        nonlocal cached_revision, cached_at, cached_devices
+        if (
+            force
+            or cached_devices is None
+            or cached_revision != revision
+            or monotonic() - cached_at >= READ_MAX_AGE
+        ):
+            seen = revision
+            cached_devices = None  # A failed forced read must not leave usable stale state.
+            cached_devices = await backend.inventory()
+            cached_at, cached_revision = monotonic(), seen
+        return cached_devices
 
     async def publish(devices, changed=None, context=NULL_CONTEXT):
         for writer, (flow, name, previous) in tuple(subscriptions.items()):
@@ -190,13 +255,33 @@ async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *
             writer.write(response(0, device, event_context) if device else baseline)
             subscriptions[writer] = (flow, name, baseline)
 
-    async def changed(device, context):
-        async with backend.lock:
-            devices = await backend.inventory()
+    async def changed(device, context, devices):
         await publish(devices, device, context)
+
+    async def read_events(process):
+        nonlocal revision
+        while line := await process.stdout.readline():
+            if re.fullmatch(
+                rb"Event '(?:new|change|remove)' on (?:sink|source|server) #\d+\r?\n", line
+            ):
+                revision += 1
+                refresh_needed.set()
+        raise BridgeError("audio_backend_disconnected")
+
+    async def refresh_subscriptions():
+        while True:
+            await refresh_needed.wait()
+            refresh_needed.clear()
+            if not subscriptions:
+                continue
+            async with transaction:
+                async with backend.lock:
+                    devices = await snapshot()
+                await publish(devices)
 
     async def notifications():
         process = None
+        tasks = []
         try:
             process = await asyncio.create_subprocess_exec(
                 "/usr/bin/pactl",
@@ -207,23 +292,23 @@ async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *
                 env=dict(os.environ, LC_ALL="C"),
                 limit=1024,
             )
-            while line := await process.stdout.readline():
-                if not re.fullmatch(
-                    rb"Event '(?:new|change|remove)' on (?:sink|source|server) #\d+\r?\n", line
-                ):
-                    continue
-                if not subscriptions:
-                    continue
-                async with transaction:
-                    async with backend.lock:
-                        devices = await backend.inventory()
-                    await publish(devices)
-            raise BridgeError("audio_backend_disconnected")
+            tasks = [
+                asyncio.create_task(read_events(process)),
+                asyncio.create_task(refresh_subscriptions()),
+            ]
+            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                await task
         except (OSError, ValueError, TimeoutError, BridgeError):
             stats["monitor_failed"] = True
+            if on_failure is not None:
+                on_failure()
             for writer in tuple(clients):
                 writer.close()
         finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             if process is not None:
                 if process.returncode is None:
                     process.kill()
@@ -238,7 +323,7 @@ async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *
                 address = writer.get_extra_info("peername")
                 local_port = writer.get_extra_info("sockname")[1]
                 if len(clients) > 32 or not await asyncio.to_thread(
-                    authorized_peer, prefix, library, address, local_port
+                    authorized_peer, prefix, library, address, local_port, hints=peer_hints
                 ):
                     stats["rejected"] += 1
                     return
@@ -254,7 +339,7 @@ async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *
                 async with transaction:
                     if operation == 3:
                         async with backend.lock:
-                            result = await dispatch(backend, header, name)
+                            result = await dispatch(backend, header, name, snapshot=snapshot)
                             if RESPONSE.unpack(result)[1] == 0:
                                 if stats["monitor_failed"]:
                                     result = response(E_FAIL)
@@ -267,7 +352,7 @@ async def endpoint_server(prefix: Path, library: Path, backend: DeviceBackend, *
                                     subscribed = True
                                     stats["subscribers"] = len(subscriptions)
                     else:
-                        result = await dispatch(backend, header, name, changed)
+                        result = await dispatch(backend, header, name, changed, snapshot)
                 stats["writes" if operation in (1, 2) else "reads"] += 1
                 writer.write(result)
                 await writer.drain()

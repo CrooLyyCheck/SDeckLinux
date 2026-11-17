@@ -52,8 +52,13 @@ int wmain(int argc, wchar_t **argv)
     UINT callback_checks = 0;
     Callback callback={{&callback_vtable},1,0,0,NULL};
     BOOL lifetime_ok = TRUE;
-    BOOL wait_notify=argc==4, notification_observed=FALSE;
-    if (argc < 2 || argc > 4 || (wait_notify && wcscmp(argv[3],L"--wait-notify"))) return 2;
+    BOOL wait_notify=FALSE, notification_observed=FALSE, registered=FALSE;
+    if (argc < 2 || argc > 5) return 2;
+    for (int i=3; i<argc; ++i) {
+        if (!wcscmp(argv[i],L"--wait-notify") && !wait_notify) wait_notify=TRUE;
+        else if (!wcscmp(argv[i],L"--registered") && !registered) registered=TRUE;
+        else return 2;
+    }
     if (wait_notify) {
         callback.event=CreateEventW(NULL,TRUE,FALSE,NULL);
         if (!callback.event) return 6;
@@ -68,7 +73,7 @@ int wmain(int argc, wchar_t **argv)
     }
     init = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     if (FAILED(init)) return 3;
-    if (get_class) {
+    if (get_class && !registered) {
         IClassFactory *factory = NULL;
         hr = get_class(&CLSID_MMDeviceEnumerator, &IID_IClassFactory, (void **)&factory);
         if (SUCCEEDED(hr)) {
@@ -76,8 +81,11 @@ int wmain(int argc, wchar_t **argv)
             IClassFactory_Release(factory);
         }
         lifetime_ok = SUCCEEDED(hr) && can_unload() == S_FALSE;
-    } else hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_INPROC_SERVER,
+    } else {
+        hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_INPROC_SERVER,
                 &IID_IMMDeviceEnumerator, (void **)&enumerator);
+        if (registered) lifetime_ok=SUCCEEDED(hr) && can_unload()==S_FALSE;
+    }
     if (SUCCEEDED(hr))
         hr = IMMDeviceEnumerator_EnumAudioEndpoints(enumerator, eAll, DEVICE_STATE_ACTIVE, &devices);
     if (SUCCEEDED(hr)) hr = IMMDeviceCollection_GetCount(devices, &count);
@@ -119,8 +127,11 @@ int wmain(int argc, wchar_t **argv)
             if (bridge && SUCCEEDED(item_hr)) {
                 HRESULT notify_hr=IAudioEndpointVolume_RegisterControlChangeNotify(volume,&callback.iface);
                 if (SUCCEEDED(notify_hr)) {
-                    if (wait_notify && !i)
+                    if (wait_notify && !i) {
+                        FILE *ready=_wfopen(argv[1],L"wb");
+                        if (ready) { fputs("{\"stage\":\"callback-ready\"}",ready); fclose(ready); }
                         notification_observed=WaitForSingleObject(callback.event,5000)==WAIT_OBJECT_0;
+                    }
                     HRESULT duplicate=IAudioEndpointVolume_RegisterControlChangeNotify(volume,&callback.iface);
                     HRESULT removed=IAudioEndpointVolume_UnregisterControlChangeNotify(volume,&callback.iface);
                     HRESULT missing=IAudioEndpointVolume_UnregisterControlChangeNotify(volume,&callback.iface);

@@ -95,8 +95,11 @@ proof of control. See [the shared API boundary](../../adr/0004-core-audio-endpoi
 An experimental [Core Audio implementation](../windows/core-audio.md) now provides
 native endpoint inventory, a COM scalar/mute boundary and Windows notifications.
 Read-only original-addon and synthetic-event probes pass, as does the separately
-approved original-addon null-output 25%/mute/restore test. Normal application
-activation and physical-device/key acceptance remain pending. This work is
+approved original-addon null-output 25%/mute/restore test. Registered activation,
+rollback and callback recovery passed; the user confirmed output control with
+both selected Virtuoso and Default. Input hardware and dials remain unverified.
+The user confirmed faster physical-key response after the latency fix and an
+app restart; exact timings are measured at the API boundary. This work is
 shared Windows compatibility, not an extension of the plugin's Audio Router API.
 
 - Actual original client, matching pinned build/prefix/socket owner: connected
@@ -123,8 +126,9 @@ shared Windows compatibility, not an extension of the plugin's Audio Router API.
   The observed default volume changed from about 43% to 48% over that interactive
   window; the exact sequence of user actions is not inferred. The bridge made
   no automatic global test writes or attempted volume restoration.
-- Input/device-specific addon actions retain Wine behavior. Generic Core Audio,
-  manual actions, hardware mute and other models/dials need separate acceptance.
+- Input/device-specific addon actions use stock Wine unless shared Core Audio is
+  enabled. That optional boundary has named/default output acceptance; input
+  hardware, manual actions, physical mute and other models/dials need separate acceptance.
 - Inspector UI: the original 1–25 Step Size slider rendered during a separately
   authorized WebEngine comparison, but the native window remained blank until
   software rendering was added. The user then confirmed the actual panel.

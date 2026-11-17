@@ -1,6 +1,6 @@
 # ADR 0004: shared Core Audio endpoint-volume boundary
 
-Status: implementation in progress, 2026-11-10; ordinary device acceptance pending.
+Status: implemented, output acceptance recorded; input/dial coverage pending, 2026-11-17.
 
 Volume Controller's application actions call Audio Router. Input/Output Device
 Control instead uses its native Windows device addon. Wine enumerates devices,
@@ -34,6 +34,7 @@ The shared device backend and COM scalar/mute/read boundary now exist. Real
 read-only factory and unchanged-addon probes reach the native service. The
 probe uses process-local side-by-side activation, not persistent COM registration
 or a vendor patch. Windows callbacks now have read-only/synthetic-event coverage;
-the approved original-addon null-output write test also passed. Native recovery
-and ordinary deployment remain gates;
+the approved original-addon null-output write test also passed. Registered
+activation, rollback, native callback recovery and user-reported named/default
+output control are recorded in STATUS. Input hardware and dial coverage remain gates;
 unsupported APIs return errors. See [the implemented scope](../compat/windows/core-audio.md).

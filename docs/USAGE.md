@@ -190,7 +190,21 @@ set `hide_event_streams = false` to show them again. Host audio listing remains
 complete. See the [compatibility notes](compat/plugins/volume-controller.md)
 for supported actions and current limits.
 
-## Native endpoint development
+## Optional Input/Output Device Control
+
+The shared Core Audio feature is optional and defaults off. To opt in, enable
+the native audio backend and `[compat.windows.core_audio] enabled = true` in the
+private configuration, then run the normal `make install`. For this feature that
+same install flow prepares the pinned portable compiler, builds the library,
+installs the service integration and records the prefix-local COM change. No
+separate repair or DLL-copy command is needed. Quit/reopen an already running
+application after first enabling it or changing the native library.
+
+The independent write permissions below control which device directions may be
+changed; installation preserves them. Setting the compatibility preference back
+to false and rerunning `make install` restores the exact stock COM registration
+and removes unchanged owned native files. Full deactivation restores it as well.
+No system Wine library is replaced. See [scope and limits](compat/windows/core-audio.md).
 
 `deckbridge audio devices` reads native input/output endpoint inventory through
 the private daemon. This is separate from application sessions and the existing
@@ -201,8 +215,12 @@ PERCENT` and `audio device-mute DEVICE_ID true|false`. They require independent
 all otherwise writable endpoints of the enabled direction. Monitor sources stay
 read-only. These settings do not follow from `allow_system_write`.
 
-The original Input/Output Device Control action is not automatically wired to
-this new API yet. See the [experimental Core Audio scope](compat/windows/core-audio.md).
+With Core Audio enabled these capabilities back the original unmodified device
+actions. Output volume has named/default user acceptance; input hardware and dials
+still need separate acceptance. Python-only updates preserve unchanged DLL/token
+inodes and restart the daemon; they do not require replacing the running app's library.
+If an update repaired a COM registration that had reverted to Wine, quit/reopen
+the app once: an existing plugin process can retain the old class factory.
 
 ## Original plugin settings under Wine
 

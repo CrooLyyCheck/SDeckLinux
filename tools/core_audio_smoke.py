@@ -31,7 +31,7 @@ from tools.audio_smoke import APPLICATION, pulse_state, state_directory, verify_
 from tools.install import atomic, private_backup  # noqa: E402
 
 
-async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
+async def observe(*, _backend=None, _on_ready=None, installed=False, _friendly_names=False) -> dict:
     config = load(default_config())
     home = Path.home()
     data = Path(os.environ.get("XDG_DATA_HOME", home / ".local/share"))
@@ -73,6 +73,7 @@ async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
                 "Z:" + str(report),
                 "Z:" + str(library),
                 *(["--registered"] if installed else ["--wait-notify"] if _on_ready else []),
+                *(["--friendly-names"] if _friendly_names else []),
                 env=dict(
                     os.environ,
                     WINEPREFIX=str(config.prefix),
@@ -108,7 +109,22 @@ async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
                 or result.get("setters_called") != 0
                 or stats["writes"]
                 or stats["rejected"]
-                or stats["reads"] != 3 * result.get("devices", 0)
+                or stats["reads"]
+                != 3 * result.get("devices", 0)
+                + (
+                    result.get("devices", 0)
+                    - result.get("default_aliases", 0)
+                    + result.get("fallback_reads", 0)
+                    if _friendly_names
+                    else 0
+                )
+                or (_friendly_names and result.get("property_checks") != result.get("devices"))
+                or (_friendly_names and not result.get("unavailable_names_ok"))
+                or (
+                    _friendly_names
+                    and result.get("native_name_checks")
+                    != result.get("devices", 0) - result.get("default_aliases", 0)
+                )
             ):
                 raise RuntimeError("Native observation failed")
             evidence = {"result": result, "transport": dict(stats)}
@@ -116,7 +132,9 @@ async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
                 atomic,
                 directory
                 / (
-                    "core-audio-installed-com.json"
+                    "core-audio-friendly-names.json"
+                    if _friendly_names
+                    else "core-audio-installed-com.json"
                     if installed
                     else "core-audio-simulated-notifications.json"
                     if _on_ready
@@ -130,6 +148,16 @@ async def observe(*, _backend=None, _on_ready=None, installed=False) -> dict:
             emitter.cancel()
             await asyncio.gather(emitter, return_exceptions=True)
         await asyncio.to_thread(report.unlink, missing_ok=True)
+
+
+async def observe_friendly_names() -> dict:
+    """Synthetic labels cross real COM; no host property or audio setters."""
+    backend = DeviceBackend()
+    devices = await backend.inventory()
+    renamed = [dataclasses.replace(d, description="Native display: " + d.name) for d in devices]
+    with patch.object(backend, "inventory", AsyncMock(return_value=renamed)):
+        result = await observe(_backend=backend, _friendly_names=True)
+    return dict(result, synthetic_native_labels=True)
 
 
 async def observe_notification_contract() -> dict:
@@ -366,14 +394,21 @@ if __name__ == "__main__":
     parser.add_argument("--approved", action="store_true")
     parser.add_argument("--simulate-notifications", action="store_true")
     parser.add_argument("--installed", action="store_true")
+    parser.add_argument("--simulate-friendly-names", action="store_true")
     args = parser.parse_args()
     if args.simulate_notifications and (args.exercise_fixture or args.approved):
         parser.error("Simulated notifications cannot be combined with fixture writes")
     if args.installed and (args.simulate_notifications or args.exercise_fixture or args.approved):
         parser.error("Installed registration observation must be read-only")
+    if args.simulate_friendly_names and (
+        args.installed or args.simulate_notifications or args.exercise_fixture or args.approved
+    ):
+        parser.error("Synthetic names must be observed separately without writes")
     try:
         result = asyncio.run(
-            observe_notification_contract()
+            observe_friendly_names()
+            if args.simulate_friendly_names
+            else observe_notification_contract()
             if args.simulate_notifications
             else exercise_original_addon(args.approved)
             if args.exercise_fixture

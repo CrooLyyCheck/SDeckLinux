@@ -1,4 +1,4 @@
-/* Preserve Wine enumeration/properties; replace only endpoint-volume activation. */
+/* Preserve Wine device identity; bridge native volume, policy and display names. */
 #define COBJMACROS
 #include <windows.h>
 #include <initguid.h>
@@ -203,7 +203,19 @@ static HRESULT WINAPI device_activate(IMMDevice *iface, REFIID iid, DWORD contex
     return IMMDevice_Activate(p->real,iid,context,params,result);
 }
 static HRESULT WINAPI device_store(IMMDevice *iface, DWORD mode, IPropertyStore **store)
-{ return IMMDevice_OpenPropertyStore(((Device *)iface)->real,mode,store); }
+{
+    Device *p=(Device *)iface;
+    IPropertyStore *native=NULL;
+    HRESULT hr;
+    if (!store) return E_POINTER;
+    *store=NULL;
+    hr=IMMDevice_OpenPropertyStore(p->real,mode,&native);
+    if (SUCCEEDED(hr)) {
+        if (mode==STGM_READ) { hr=db_store_create(p->real,native,store);IPropertyStore_Release(native); }
+        else *store=native;
+    }
+    return hr;
+}
 static HRESULT WINAPI device_id(IMMDevice *iface, LPWSTR *id)
 { return IMMDevice_GetId(((Device *)iface)->real,id); }
 static HRESULT WINAPI device_state(IMMDevice *iface, DWORD *state)

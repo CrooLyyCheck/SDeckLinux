@@ -10,7 +10,17 @@ Controller's JSON-RPC fields. The original application/plugins remain unchanged.
   independent write gates, channel balance, revalidation and verified readback.
 - `CLSID_MMDeviceEnumerator` class factory and wrappers for enumeration,
   collections, devices and `IMMEndpoint`, preserving COM `IUnknown` identity.
-  Properties, states, device IDs and other activation interfaces delegate to Wine.
+  States, device IDs and other activation interfaces delegate to Wine.
+- Read-only `IPropertyStore` exposes the current native endpoint description as
+  `PKEY_Device_FriendlyName`, preferring a per-node nickname before the controller
+  description. Other properties and writable stores delegate to Wine. Missing
+  native metadata/default aliases fall back to the original Wine friendly name.
+  Repeated outer Speakers/Microphone wrappers caused by Wine reloading cached
+  unavailable names are collapsed in readback only; registry values remain intact.
+  Wine 11.20's [`load_devices_from_reg` and `MMDevice_Create`](https://github.com/wine-mirror/wine/blob/wine-11.20/dlls/mmdevapi/devenum.c)
+  explain the repeated wrappers: the cached combined name becomes the next
+  driver name and receives another endpoint-type prefix.
+  Display names never participate in routing identity or matching.
 - `IAudioEndpointVolume` / `Ex`: scalar master-volume and mute get/set, channel
   count/scalar reads and software-only hardware-support reporting.
 - Endpoint callback registration/removal, bounded callback lists, balanced COM
@@ -39,6 +49,8 @@ physical native default reads and output-default notifications. Its independent
 feature/write gates and limits are described in
 [ADR 0005](../../adr/0005-default-output-policy.md). Successful policy read/subscribe
 frames append a bounded native-name extension; existing volume frames stay intact.
+Read-only operation 7 returns a named endpoint's UTF-8 description using that
+same length-prefixed extension, independently of routing/volume write permission.
 Input and Communications routing are not provided.
 
 ## Deployment boundary
@@ -87,6 +99,7 @@ make check
 make native-core-audio native-probe
 .venv/bin/python tools/core_audio_smoke.py
 .venv/bin/python tools/core_audio_smoke.py --simulate-notifications
+.venv/bin/python tools/core_audio_smoke.py --simulate-friendly-names
 .venv/bin/python tools/core_audio_smoke.py --installed
 ```
 
@@ -103,6 +116,10 @@ real Windows `OnNotify` callback using synthetic endpoint levels held only in
 Python memory. It invoked no host setter and is not native audio-mutation evidence.
 Hardware-free tests cover context GUID propagation, native external-change events,
 deduplication, rejected registration after monitor loss, and policy failures.
+The friendly-name probe substitutes unique synthetic native descriptions in
+memory, checks the exact name for each physical endpoint through `IPropertyStore`,
+verifies fallback aliases/other-property reads and COM identity/lifetimes, and
+issues no setter. Actual multi-monitor GUI behavior needs separate observation.
 
 The callback reference/lifecycle contract follows Microsoft's
 [registration](https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nf-endpointvolume-iaudioendpointvolume-registercontrolchangenotify)

@@ -16,6 +16,8 @@ HRESULT db_audio_subscribe(const DBEndpointIdentity *identity, DBReply *reply, D
 HRESULT db_audio_next(DBSubscription *subscription, HANDLE stop, DBReply *reply);
 void db_audio_close(DBSubscription *subscription);
 HRESULT db_audio_default(DBEndpointIdentity *identity);
+HRESULT db_audio_description(const DBEndpointIdentity *identity, LPWSTR *description);
+HRESULT db_store_create(IMMDevice *device, IPropertyStore *real, IPropertyStore **result);
 HRESULT db_audio_subscribe_default(DBEndpointIdentity *identity, DBSubscription **result);
 HRESULT db_audio_next_default(DBSubscription *subscription, HANDLE stop, DBEndpointIdentity *identity);
 HRESULT db_wine_enumerator(IMMDeviceEnumerator **result, HMODULE *module);

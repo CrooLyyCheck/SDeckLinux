@@ -222,6 +222,24 @@ HRESULT db_audio_default(DBEndpointIdentity *identity)
     return audio_open(&request,5,0,NULL,&reply,NULL,identity);
 }
 
+HRESULT db_audio_description(const DBEndpointIdentity *identity,LPWSTR *description)
+{
+    DBEndpointIdentity text;
+    DBReply reply;
+    HRESULT hr;
+    SIZE_T bytes;
+    if (!identity || !description) return E_POINTER;
+    *description=NULL;
+    if (identity->follows_default) return E_NOTIMPL;
+    hr=audio_open(identity,7,0,NULL,&reply,NULL,&text);
+    if (FAILED(hr)) return hr;
+    bytes=(wcslen(text.name)+1)*sizeof(WCHAR);
+    *description=CoTaskMemAlloc(bytes);
+    if (!*description) return E_OUTOFMEMORY;
+    memcpy(*description,text.name,bytes);
+    return S_OK;
+}
+
 HRESULT db_audio_subscribe_default(DBEndpointIdentity *identity,DBSubscription **result)
 {
     DBEndpointIdentity request;

@@ -33,6 +33,6 @@ native-policy-probe:
 native-core-audio:
 	@test -x "$(NATIVE_CC)" || { echo 'Prepare the isolated compiler described in tools/native/README.md'; exit 1; }
 	mkdir -p .local/native
-	"$(NATIVE_CC)" -std=c11 -O2 -Wall -Wextra -Werror -shared deckbridge/compat/windows/core_audio/identity.c deckbridge/compat/windows/core_audio/client.c deckbridge/compat/windows/core_audio/volume.c deckbridge/compat/windows/core_audio/policy.c deckbridge/compat/windows/core_audio/default_events.c deckbridge/compat/windows/core_audio/factory.c deckbridge/compat/windows/core_audio/exports.def -o .local/native/deckbridge-core-audio.dll -lole32 -luuid -ladvapi32 -lws2_32
+	"$(NATIVE_CC)" -std=c11 -O2 -Wall -Wextra -Werror -shared deckbridge/compat/windows/core_audio/identity.c deckbridge/compat/windows/core_audio/client.c deckbridge/compat/windows/core_audio/volume.c deckbridge/compat/windows/core_audio/policy.c deckbridge/compat/windows/core_audio/default_events.c deckbridge/compat/windows/core_audio/properties.c deckbridge/compat/windows/core_audio/factory.c deckbridge/compat/windows/core_audio/exports.def -o .local/native/deckbridge-core-audio.dll -lole32 -luuid -ladvapi32 -lws2_32
 	"$(NATIVE_CC)" -std=c11 -O2 -Wall -Wextra -Werror -shared tools/native/core_audio_bootstrap.c -o .local/native/core-audio-bootstrap.node
 	cp tools/native/core_audio_bootstrap.manifest .local/native/core-audio-bootstrap.manifest

@@ -141,11 +141,11 @@ def response(status: int, device=None, context=NULL_CONTEXT) -> bytes:
     )
 
 
-def default_response(status: int, device=None) -> bytes:
+def default_response(status: int, device=None, *, description=False) -> bytes:
     if status:
         return response(status)
-    name = device.name.encode("utf-8")
-    if not 0 < len(name) <= 4096:
+    name = (device.description if description else device.name).encode("utf-8")
+    if not 0 < len(name) <= 4096 or b"\x00" in name:
         return response(E_FAIL)
     return response(0, device) + NAME_LENGTH.pack(len(name)) + name
 
@@ -162,7 +162,7 @@ async def dispatch(
         magic, operation, flow, length, value, context = REQUEST.unpack(header)
         if (
             magic != MAGIC
-            or operation not in (0, 1, 2, 3, 4, 5, 6)
+            or operation not in (0, 1, 2, 3, 4, 5, 6, 7)
             or flow not in (0, 1)
             or length != len(name_bytes)
             or length > 4096
@@ -179,6 +179,7 @@ async def dispatch(
                 return response(E_INVALIDARG)
         if (
             "\x00" in name
+            or (operation == 7 and (not name or value != 0))
             or (operation == 1 and not 0 <= value <= 1)
             or (operation == 2 and value not in (0, 1))
         ):
@@ -220,6 +221,8 @@ async def dispatch(
                 await on_change(device, context, devices)
         if operation in (5, 6):
             return default_response(0, device)
+        if operation == 7:
+            return default_response(0, device, description=True)
         return response(0, device, context if operation in (1, 2) else NULL_CONTEXT)
     except BridgeError as error:
         return response(

@@ -34,6 +34,15 @@ Wine GUID/native-name mapping. A native output-default subscription supplies
 Console/Multimedia notifications. Wine continues to supply other device events.
 No registry default-device value is written on a button press.
 
+The shared read-only property store also supplies the current native friendly
+name. Per-node monitor nicknames lead GPU/controller descriptions. Each endpoint
+is resolved separately by exact identity; shared GPUs or duplicate display labels
+do not merge devices. The synthetic multi-port test does not establish real
+multi-monitor acceptance. Default aliases/missing metadata keep Wine names.
+The user confirmed LG appears once and the retained unavailable entry no longer
+contains repeated Speakers wrappers. Unavailable entries stay unavailable; the
+bridge does not delete saved selections or rewrite the plugin's settings.
+
 ## Evidence and limits
 
 - Real x64 COM factory/interface identity and lifetime checks pass under Wine.

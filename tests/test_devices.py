@@ -74,6 +74,31 @@ class DeviceModelTests(unittest.TestCase):
         normal = dict(endpoint("microphone"), monitor_of_sink=4294967295)
         self.assertFalse(from_pulse(info(), [], [normal])[0].monitor)
 
+    def test_per_port_monitor_names_lead_shared_controller_description(self):
+        entries = []
+        for index, nick in enumerate(("Display A", "Display B", "Display A")):
+            item = endpoint(f"gpu.port.{index}", str(100 + index), index)
+            item["description"] = "Same GPU HDMI audio"
+            item["properties"]["node.nick"] = nick
+            entries.append(item)
+        devices = from_pulse(info(), entries, [])
+        self.assertEqual(
+            [d.description for d in devices],
+            [
+                "Display A — Same GPU HDMI audio",
+                "Display B — Same GPU HDMI audio",
+                "Display A — Same GPU HDMI audio",
+            ],
+        )
+        self.assertEqual(len({d.id for d in devices}), 3)
+        self.assertEqual(len({d.identity for d in devices}), 3)
+
+    def test_monitor_nickname_is_not_repeated_in_controller_suffix(self):
+        item = endpoint()
+        item["description"] = "GPU HDMI [Display A]"
+        item["properties"]["node.nick"] = "Display A"
+        self.assertEqual(from_pulse(info(), [item], [])[0].description, "Display A — GPU HDMI")
+
 
 class DeviceWriteTests(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_gates_never_call_external_tools(self):

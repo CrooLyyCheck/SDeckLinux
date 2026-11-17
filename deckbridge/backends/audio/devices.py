@@ -74,12 +74,21 @@ def from_pulse(info: dict, sinks: list, sources: list) -> list[Device]:
                     item["properties"].get("device.class") == "monitor"
                     or item.get("monitor_of_sink") not in (None, 4294967295, "4294967295")
                 )
+                description = str(item.get("description") or name)
+                nick = item["properties"].get("node.nick")
+                # PipeWire's per-node nick can identify the attached HDMI monitor,
+                # whereas device.description identifies the shared GPU/controller.
+                if isinstance(nick, str) and nick.strip() and not description.startswith(nick):
+                    suffix = f" [{nick}]"
+                    if description.endswith(suffix):
+                        description = description[: -len(suffix)]
+                    description = nick + " — " + description
                 devices.append(
                     Device(
                         f"pulse:{direction}:{cookie}:{int(serial)}",
                         direction,
                         name,
-                        str(item.get("description") or name)[:256],
+                        description[:256],
                         int(serial),
                         index,
                         channels,

@@ -1,5 +1,29 @@
 # Status — 2026-11-17, Europe/Warsaw
 
+## Native endpoint display names
+
+Audio Switcher's list previously displayed Wine's cached GPU/controller name,
+although native metadata included the attached HDMI monitor. The shared read-only
+property-store wrapper now returns the current native description for
+`PKEY_Device_FriendlyName`. A per-node `node.nick` leads the description when
+available, so an attached display name appears before the shared GPU model.
+Device IDs, exact mapping, other properties and writable stores retain Wine's
+behavior. Default aliases and unavailable metadata fall back to Wine names.
+
+Synthetic tests cover multiple ports on one controller, different monitor names
+and duplicate display labels without merging endpoint identities. A real Wine
+COM probe verified seven property stores, including five exact native labels and
+two fallback aliases, plus identity/refcount/volume callback checks. The user
+confirmed the original list now includes LG. Follow-up removes the duplicate
+nickname from the controller suffix and collapses Wine's repeated outer
+Speakers/Microphone wrappers in unavailable-name readback, leaving IDs, cached
+registry values and the plugin's unavailable status unchanged. The regression
+probe also verified all 15 unavailable entries: 41 reads, zero writes.
+**183 hardware-free tests pass**. The guided update restarted the application,
+preserved configuration and issued no audio setter. The user confirmed the
+original plugin's refreshed list shows LG once and a single Speakers wrapper
+for the unavailable entry. Multiple physical monitors remain untested.
+
 ## Audio Devices: Set Audio Device output switching accepted
 
 The installed Audio Switcher 3.2.0.90 contract was audited against its pinned

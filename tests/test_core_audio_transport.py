@@ -93,6 +93,8 @@ class CoreAudioDispatchTests(unittest.IsolatedAsyncioTestCase):
             (1, 0, b"speaker", math.nan),
             (1, 0, b"speaker", 1.1),
             (2, 0, b"speaker", 0.5),
+            (7, 0, b"speaker", 1),
+            (7, 0, b"", 0),
         )
         with patch.object(backend, "inventory", new_callable=AsyncMock) as inventory:
             for op, flow, name, value in cases:
@@ -100,6 +102,38 @@ class CoreAudioDispatchTests(unittest.IsolatedAsyncioTestCase):
                     (await self.request(backend, op, flow, name, value))[1], rpc.E_INVALIDARG
                 )
             inventory.assert_not_called()
+
+    async def test_friendly_names_resolve_each_endpoint_independently_of_gpu_or_label(self):
+        backend = DeviceBackend()
+        endpoints = [
+            dataclasses.replace(device(), name="gpu.hdmi.1", description="GPU [Monitor A]"),
+            dataclasses.replace(device(), name="gpu.hdmi.2", description="GPU [Monitor B – LG]"),
+            dataclasses.replace(device(), name="gpu.hdmi.3", description="GPU [Monitor A]"),
+        ]
+        with (
+            patch.object(backend, "inventory", new_callable=AsyncMock, return_value=endpoints),
+            patch.object(backend, "set_target", new_callable=AsyncMock) as setter,
+        ):
+            for endpoint in endpoints:
+                name = endpoint.name.encode()
+                header = rpc.REQUEST.pack(rpc.MAGIC, 7, 0, len(name), 0, rpc.NULL_CONTEXT)
+                result = await rpc.dispatch(backend, header, name)
+                self.assertEqual(rpc.RESPONSE.unpack_from(result)[1], 0)
+                size = rpc.NAME_LENGTH.unpack_from(result, rpc.RESPONSE.size)[0]
+                self.assertEqual(result[rpc.RESPONSE.size + 4 :], endpoint.description.encode())
+                self.assertEqual(size, len(endpoint.description.encode()))
+            setter.assert_not_called()
+
+    async def test_invalid_friendly_name_fails_without_a_partial_string_frame(self):
+        backend = DeviceBackend()
+        for label in ("", "bad\x00name", "x" * 4097):
+            with patch.object(
+                backend,
+                "inventory",
+                new_callable=AsyncMock,
+                return_value=[dataclasses.replace(device(), description=label)],
+            ):
+                self.assertEqual((await self.request(backend, op=7))[1], rpc.E_FAIL)
 
 
 class CoreAudioSocketTests(unittest.IsolatedAsyncioTestCase):

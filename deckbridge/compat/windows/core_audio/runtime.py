@@ -9,6 +9,7 @@ import os
 import stat
 from pathlib import Path
 
+from ....backends.audio.defaults import DefaultOutputBackend
 from ....config import Config
 from .activation import library_path
 from .transport import endpoint_server
@@ -50,7 +51,18 @@ async def run(config: Config, backend, status: dict) -> None:
     try:
         library = await asyncio.to_thread(installed_library, data, state)
         failed = asyncio.Event()
-        async with endpoint_server(config.prefix, library, backend, on_failure=failed.set) as (
+        defaults = (
+            DefaultOutputBackend(
+                backend,
+                allow_write=config.audio.allow_default_output_write,
+                allowed_targets=config.audio.allowed_default_outputs,
+            )
+            if config.windows_default_output
+            else None
+        )
+        async with endpoint_server(
+            config.prefix, library, backend, on_failure=failed.set, defaults=defaults
+        ) as (
             _,
             stats,
         ):

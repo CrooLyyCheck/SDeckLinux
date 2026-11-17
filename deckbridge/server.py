@@ -55,6 +55,7 @@ class Server:
         self.audio = audio
         self.core_audio_status = {
             "enabled": config.windows_core_audio,
+            "default_output_enabled": config.windows_default_output,
             "listening": False,
             "error": "",
         }
@@ -99,6 +100,7 @@ class Server:
                     "audio.devices.list",
                     "audio.device.volume",
                     "audio.device.mute",
+                    "audio.output.default",
                 }
             ):
                 metadata["capability"] = candidate
@@ -117,6 +119,9 @@ class Server:
                         "system_write_enabled": self.audio.allow_system_write,
                         "device_output_write_enabled": self.audio.devices.allow_output,
                         "device_input_write_enabled": self.audio.devices.allow_input,
+                        "default_output_write_enabled": (
+                            self.config.audio.allow_default_output_write
+                        ),
                         "volume_controller": dict(self.audio.adapter_status),
                         "windows_core_audio": dict(self.core_audio_status),
                     }

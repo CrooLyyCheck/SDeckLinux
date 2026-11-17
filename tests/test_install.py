@@ -129,6 +129,37 @@ class InstallTests(unittest.TestCase):
             self.assertFalse(library.exists())
             self.assertFalse(library.with_suffix(".token").exists())
 
+    def test_default_output_policy_uses_standard_install_without_enabling_routing_writes(self):
+        install(self.args)
+        path = self.config / "deckbridge/config.toml"
+        content = (
+            path.read_bytes()
+            .replace(
+                b"[compat.windows.core_audio]\nenabled = false",
+                b"[compat.windows.core_audio]\nenabled = true",
+            )
+            .replace(b"default_output = false", b"default_output = true")
+            + b"\n[audio]\nenabled=true\n"
+        )
+        path.write_bytes(content)
+        artifact = self.home / "compiled.dll"
+        artifact.write_bytes(b"MZ synthetic")
+        with (
+            patch("tools.install.NATIVE_LIBRARY", artifact),
+            patch("tools.install.activation.synchronize"),
+            patch("tools.install.policy_activation.synchronize") as sync,
+            patch("tools.install.policy_activation.restore") as restore,
+        ):
+            install(self.args)
+            self.assertTrue(sync.call_args.args[2])
+            self.assertTrue(sync.call_args.kwargs["shared_enabled"])
+            self.assertFalse(load(path).audio.allow_default_output_write)
+            self.assertEqual(path.read_bytes(), content)
+            self.args.deactivate = True
+            install(self.args)
+            restore.assert_called_once()
+            self.assertFalse(restore.call_args.kwargs["shared_enabled"])
+
     def test_native_renderer_is_builtin_respects_opt_out_and_restores_on_deactivation(self):
         with (
             patch("tools.install.native_renderer.synchronize") as synchronize,

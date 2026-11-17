@@ -32,3 +32,10 @@ physical-key latency is unmeasured. Stock Wine endpoint
 enumeration alone does not establish volume support.
 Future capabilities should follow observed consumers, without speculative shims
 or a replacement app/plugin UI. No broad Core Audio compatibility is implied.
+
+Audio Switcher's Output → Default boundary is implemented behind independent
+policy/routing gates. Wine reads and memory-only switch/notification/restore pass.
+The original Set Audio Device key now has user-confirmed Output / Default routing
+to Virtuoso Wireless, corroborated by native readback. Reverse switching,
+independent key state and Toggle acceptance remain pending.
+See [ADR 0005](adr/0005-default-output-policy.md).

@@ -34,6 +34,13 @@ native network deadline. Callback transport has bounded frames and cancellable w
 dB/range/step and channel-write APIs return explicit unsupported errors.
 These limits prevent treating the library as complete Core Audio support.
 
+Optional default-output policy adds `IPolicyConfigVista::SetDefaultEndpoint`,
+physical native default reads and output-default notifications. Its independent
+feature/write gates and limits are described in
+[ADR 0005](../../adr/0005-default-output-policy.md). Successful policy read/subscribe
+frames append a bounded native-name extension; existing volume frames stay intact.
+Input and Communications routing are not provided.
+
 ## Deployment boundary
 
 The feature defaults off and requires the native audio backend. Once explicitly

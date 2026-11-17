@@ -1,0 +1,22 @@
+{
+  "plugin_uuid": "com.fredemmott.audiooutputswitch",
+  "plugin_version": "3.2.0.90",
+  "mode": "generic-bridge",
+  "acceptance": "manual-set-output-default",
+  "actions": {
+    "set": "com.fredemmott.audiooutputswitch.set",
+    "toggle": "com.fredemmott.audiooutputswitch.toggle"
+  },
+  "windows_api": {
+    "interface": "IPolicyConfigVista",
+    "method": "SetDefaultEndpoint",
+    "role": "eConsole",
+    "source_repository": "fredemmott/AudioDeviceLib",
+    "source_commit": "fb7b31b42d331480dce766c83230c905fbb1e540"
+  },
+  "files": {
+    "manifest.json": "c4537f52fd484ed06fa6c50ee418b427c35355703c4157dec9dcc383d669c05d",
+    "sdaudioswitch.exe": "e2aeafa67b509fef5b8bbfbde8d412bec0de609de8462ae7a155fe86eb229af0",
+    "propertyinspector/index.html": "c38c2be03c1becfee29bb82aa0596170bb209cf705d54fe6323951235c6095e1"
+  }
+}

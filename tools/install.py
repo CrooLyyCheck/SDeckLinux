@@ -30,7 +30,10 @@ from deckbridge.compat.sdeck.webview import desktop as menu  # noqa: E402
 from deckbridge.compat.sdeck.webview import native_renderer  # noqa: E402
 from deckbridge.compat.sdeck.webview.preferences import with_mode  # noqa: E402
 from deckbridge.compat.windows import fonts  # noqa: E402
-from deckbridge.compat.windows.core_audio import activation  # noqa: E402
+from deckbridge.compat.windows.core_audio import (  # noqa: E402
+    activation,
+    policy_activation,
+)
 from deckbridge.config import load  # noqa: E402
 from deckbridge.protocol import BridgeError  # noqa: E402
 
@@ -181,9 +184,17 @@ def install(args: argparse.Namespace) -> None:
             and not manifest.get(native_renderer.MANAGED)
             and not manifest.get(fonts.MANAGED)
             and not manifest.get(activation.MANAGED)
+            and not manifest.get(policy_activation.MANAGED)
         ):
             print("Already deactivated; private config and backups retained.")
             return
+        policy_activation.restore(
+            data,
+            manifest,
+            lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+            lambda kind, content: private_backup(state, kind, content),
+            shared_enabled=False,
+        )
         activation.restore(
             data,
             manifest,
@@ -370,6 +381,7 @@ software_rendering = true
 enabled = true
 [compat.windows.core_audio]
 enabled = false
+default_output = false
 """
     config_content = config_original if config_original is not None else cfg.encode()
     mode = getattr(args, "webview_mode", None)
@@ -477,6 +489,15 @@ enabled = false
         manifest,
         lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
         lambda kind, content: private_backup(state, kind, content),
+    )
+    policy_activation.synchronize(
+        prefix,
+        data,
+        effective_config.windows_default_output,
+        manifest,
+        lambda: atomic(manifest_path, json.dumps(manifest, indent=2).encode()),
+        lambda kind, content: private_backup(state, kind, content),
+        shared_enabled=effective_config.windows_core_audio,
     )
     for obsolete in obsolete_files:
         if str(obsolete) not in manifest["files"]:

@@ -4,15 +4,16 @@
 #include <initguid.h>
 #include "client.h"
 #include <endpointvolume.h>
+#include <wchar.h>
 
 static LONG objects, locks;
 void db_object_created(void) { InterlockedIncrement(&objects); }
 void db_object_destroyed(void) { InterlockedDecrement(&objects); }
 
-typedef struct { IMMDeviceEnumerator iface; LONG refs; IMMDeviceEnumerator *real; HMODULE module; } Enumerator;
+typedef struct { IMMDeviceEnumerator iface; LONG refs; IMMDeviceEnumerator *real; HMODULE module; DBEnumEvents *events; } Enumerator;
 typedef struct { IMMDeviceCollection iface; LONG refs; IMMDeviceCollection *real; HMODULE module; } Collection;
 typedef struct { IMMDevice iface; IMMEndpoint endpoint; LONG refs; IMMDevice *real; HMODULE module; } Device;
-typedef struct { IClassFactory iface; LONG refs; } Factory;
+typedef struct { IClassFactory iface; LONG refs; BOOL policy; } Factory;
 
 static HRESULT wrap_device(IMMDevice *real, IMMDevice **result);
 static HRESULT wrap_collection(IMMDeviceCollection *real, IMMDeviceCollection **result);
@@ -23,13 +24,64 @@ static HMODULE retain_wine(void)
     return LoadLibraryExW(L"mmdevapi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
+HRESULT db_wine_enumerator(IMMDeviceEnumerator **result,HMODULE *module)
+{
+    HRESULT (WINAPI *get_class)(REFCLSID,REFIID,void **);
+    IClassFactory *factory=NULL;
+    HRESULT hr=E_FAIL;
+    if (!result || !module) return E_POINTER;
+    *result=NULL; *module=retain_wine();
+    if (!*module) return hr;
+    get_class=(HRESULT (WINAPI *)(REFCLSID,REFIID,void **))(void *)GetProcAddress(*module,"DllGetClassObject");
+    if (get_class) hr=get_class(&CLSID_MMDeviceEnumerator,&IID_IClassFactory,(void **)&factory);
+    if (SUCCEEDED(hr)) hr=IClassFactory_CreateInstance(factory,NULL,&IID_IMMDeviceEnumerator,(void **)result);
+    if (factory) IClassFactory_Release(factory);
+    if (FAILED(hr)) { FreeLibrary(*module);*module=NULL; }
+    return hr;
+}
+
+HRESULT db_find_native_device(IMMDeviceEnumerator *real,const DBEndpointIdentity *identity,IMMDevice **out)
+{
+    IMMDeviceCollection *list=NULL;
+    IMMDevice *found=NULL;
+    UINT count=0;
+    HRESULT hr;
+    if (!out) return E_POINTER;
+    *out=NULL;
+    if (!identity->name[0]) return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    hr=IMMDeviceEnumerator_EnumAudioEndpoints(real,identity->flow,DEVICE_STATE_ACTIVE,&list);
+    if (SUCCEEDED(hr)) hr=IMMDeviceCollection_GetCount(list,&count);
+    if (count>256) hr=E_FAIL;
+    for (UINT i=0;SUCCEEDED(hr)&&i<count;++i) {
+        IMMDevice *item=NULL;
+        DBEndpointIdentity candidate;
+        HRESULT item_hr=IMMDeviceCollection_Item(list,i,&item);
+        if (SUCCEEDED(item_hr)) item_hr=db_endpoint_identity(item,&candidate);
+        if (SUCCEEDED(item_hr) && candidate.flow==identity->flow && !wcscmp(candidate.name,identity->name)) {
+            if (found) { IMMDevice_Release(item);hr=E_FAIL;break; }
+            found=item;item=NULL;
+        }
+        if (item) IMMDevice_Release(item);
+    }
+    if (list) IMMDeviceCollection_Release(list);
+    if (SUCCEEDED(hr) && found) { *out=found;return S_OK; }
+    if (found) IMMDevice_Release(found);
+    return FAILED(hr)?hr:HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+}
 #define DEFINE_REFS(tag, Type, Interface) \
 static ULONG WINAPI tag##_addref(Interface *iface) { return InterlockedIncrement(&((Type *)iface)->refs); } \
 static ULONG WINAPI tag##_release(Interface *iface) { \
     Type *p=(Type *)iface; ULONG n=InterlockedDecrement(&p->refs); \
     if (!n) { Interface##_Release(p->real); FreeLibrary(p->module); CoTaskMemFree(p); db_object_destroyed(); } return n; }
 
-DEFINE_REFS(enumerator, Enumerator, IMMDeviceEnumerator)
+static ULONG WINAPI enumerator_addref(IMMDeviceEnumerator *iface)
+{ return InterlockedIncrement(&((Enumerator *)iface)->refs); }
+static ULONG WINAPI enumerator_release(IMMDeviceEnumerator *iface)
+{
+    Enumerator *p=(Enumerator *)iface;ULONG n=InterlockedDecrement(&p->refs);
+    if (!n) { db_enum_events_close(p->events);IMMDeviceEnumerator_Release(p->real);FreeLibrary(p->module);CoTaskMemFree(p);db_object_destroyed(); }
+    return n;
+}
 DEFINE_REFS(collection, Collection, IMMDeviceCollection)
 DEFINE_REFS(device, Device, IMMDevice)
 
@@ -95,7 +147,13 @@ static HRESULT WINAPI enumerator_default(IMMDeviceEnumerator *iface, EDataFlow f
     HRESULT hr;
     if (!result) return E_POINTER;
     *result=NULL;
-    hr=IMMDeviceEnumerator_GetDefaultAudioEndpoint(((Enumerator *)iface)->real,flow,role,&native);
+    if (flow==eRender && (role==eConsole || role==eMultimedia)) {
+        DBEndpointIdentity identity;
+        hr=db_audio_default(&identity);
+        if (hr==E_NOTIMPL)
+            hr=IMMDeviceEnumerator_GetDefaultAudioEndpoint(((Enumerator *)iface)->real,flow,role,&native);
+        else if (SUCCEEDED(hr)) hr=db_find_native_device(((Enumerator *)iface)->real,&identity,&native);
+    } else hr=IMMDeviceEnumerator_GetDefaultAudioEndpoint(((Enumerator *)iface)->real,flow,role,&native);
     if (SUCCEEDED(hr)) { hr=wrap_device(native,result); IMMDevice_Release(native); }
     return hr;
 }
@@ -110,9 +168,17 @@ static HRESULT WINAPI enumerator_get(IMMDeviceEnumerator *iface, LPCWSTR id, IMM
     return hr;
 }
 static HRESULT WINAPI enumerator_register(IMMDeviceEnumerator *iface, IMMNotificationClient *client)
-{ return IMMDeviceEnumerator_RegisterEndpointNotificationCallback(((Enumerator *)iface)->real,client); }
+{
+    Enumerator *p=(Enumerator *)iface;
+    HRESULT hr=db_enum_register(p->events,client);
+    return hr==E_NOTIMPL?IMMDeviceEnumerator_RegisterEndpointNotificationCallback(p->real,client):hr;
+}
 static HRESULT WINAPI enumerator_unregister(IMMDeviceEnumerator *iface, IMMNotificationClient *client)
-{ return IMMDeviceEnumerator_UnregisterEndpointNotificationCallback(((Enumerator *)iface)->real,client); }
+{
+    Enumerator *p=(Enumerator *)iface;
+    HRESULT hr=db_enum_unregister(p->events,client);
+    return hr==HRESULT_FROM_WIN32(ERROR_NOT_FOUND)?IMMDeviceEnumerator_UnregisterEndpointNotificationCallback(p->real,client):hr;
+}
 static HRESULT WINAPI collection_count(IMMDeviceCollection *iface, UINT *count)
 { return IMMDeviceCollection_GetCount(((Collection *)iface)->real,count); }
 static HRESULT WINAPI collection_item(IMMDeviceCollection *iface, UINT index, IMMDevice **result)
@@ -159,7 +225,12 @@ static IMMEndpointVtbl endpoint_vtable={endpoint_query,endpoint_addref,endpoint_
     p->iface.lpVtbl=&table; p->refs=1; p->real=real; Interface##_AddRef(real); db_object_created();
 
 static HRESULT wrap_enumerator(IMMDeviceEnumerator *real, IMMDeviceEnumerator **result)
-{ WRAP_BODY(Enumerator,IMMDeviceEnumerator,enumerator_vtable) *result=&p->iface; return S_OK; }
+{
+    WRAP_BODY(Enumerator,IMMDeviceEnumerator,enumerator_vtable)
+    p->events=db_enum_events_create(real);
+    if (!p->events) { enumerator_release(&p->iface);return E_OUTOFMEMORY; }
+    *result=&p->iface;return S_OK;
+}
 static HRESULT wrap_collection(IMMDeviceCollection *real, IMMDeviceCollection **result)
 { WRAP_BODY(Collection,IMMDeviceCollection,collection_vtable) *result=&p->iface; return S_OK; }
 static HRESULT wrap_device(IMMDevice *real, IMMDevice **result)
@@ -188,10 +259,10 @@ static HRESULT WINAPI factory_create(IClassFactory *iface, IUnknown *outer, REFI
     IClassFactory *factory=NULL;
     IMMDeviceEnumerator *native=NULL, *wrapped=NULL;
     HRESULT hr=E_FAIL;
-    (void)iface;
     if (!result) return E_POINTER;
     *result=NULL;
     if (outer) return CLASS_E_NOAGGREGATION;
+    if (((Factory *)iface)->policy) return db_policy_create(iid,result);
     module=retain_wine();
     if (!module) return hr;
     get_class=(HRESULT (WINAPI *)(REFCLSID,REFIID,void **))(void *)GetProcAddress(module,"DllGetClassObject");
@@ -224,10 +295,11 @@ HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void **result)
     HRESULT hr;
     if (!result) return E_POINTER;
     *result=NULL;
-    if (!IsEqualCLSID(clsid,&CLSID_MMDeviceEnumerator)) return CLASS_E_CLASSNOTAVAILABLE;
+    if (!IsEqualCLSID(clsid,&CLSID_MMDeviceEnumerator) && !IsEqualCLSID(clsid,&DB_CLSID_PolicyVista)) return CLASS_E_CLASSNOTAVAILABLE;
     factory=CoTaskMemAlloc(sizeof(*factory));
     if (!factory) return E_OUTOFMEMORY;
-    factory->iface.lpVtbl=&factory_vtable; factory->refs=1; db_object_created();
+    factory->iface.lpVtbl=&factory_vtable; factory->refs=1;
+    factory->policy=IsEqualCLSID(clsid,&DB_CLSID_PolicyVista);db_object_created();
     hr=factory_query(&factory->iface,iid,result);
     factory_release(&factory->iface);
     return hr;

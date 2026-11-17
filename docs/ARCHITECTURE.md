@@ -114,6 +114,7 @@ and prefix-local Liberation Sans font fix remain intact.
 | `deckbridge.diagnostics` | Read-only component and HID visibility observations |
 | `deckbridge.backends.audio` | Linux sessions, stable identities, grouping, graph changes and scoped per-stream control |
 | `deckbridge.backends.audio.devices` | Native endpoint inventory, independent input/output gates, exact identity and verified balanced writes |
+| `deckbridge.backends.audio.defaults` | Independently gated, identity-checked default-output selection and verified readback |
 | `deckbridge.compat.windows.core_audio` | Optional shared COM endpoint wrappers, callbacks, Wine identity translation, scoped activation and bounded native RPC |
 | `deckbridge.backends.desktop` | Bounded native named-icon lookup/rendering using existing system GI packages |
 | `deckbridge.compat.plugins.volume_controller` | Observed vendor contract, process authentication, RPC and notifications |

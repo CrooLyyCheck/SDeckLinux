@@ -161,6 +161,20 @@ sessions. No automated real-app or global-volume tests were performed.
 
 ## Core Audio endpoint development probes
 
+Default-output policy probes are separate:
+
+```bash
+make native-core-audio native-policy-probe
+.venv/bin/python tools/policy_smoke.py
+.venv/bin/python tools/policy_smoke.py --simulate
+```
+
+The first is read-only. The second exercises real Windows interfaces against a
+memory-only backend, with host routing commands blocked. Both snapshot registry
+state before Wine and report no private endpoint IDs. Neither authorizes a real
+default-output change. The native CLI setter and original plugin routing test
+require separate consent even if a volume fixture test was approved earlier.
+
 For the separate Input/Output Device Control boundary, see the
 [Core Audio probe scope](compat/windows/core-audio.md#verification). Its default
 COM run is read-only; simulated notifications change only memory-held models.

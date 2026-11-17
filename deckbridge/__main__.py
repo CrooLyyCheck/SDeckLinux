@@ -50,12 +50,15 @@ async def main(args: argparse.Namespace) -> dict | None:
             "devices": "audio.devices.list",
             "device-volume": "audio.device.volume",
             "device-mute": "audio.device.mute",
+            "default-output": "audio.output.default",
         }[args.audio_command]
         arguments = {}
         if args.audio_command in {"set-volume", "device-volume"}:
             arguments = {"target": args.target, "volume": args.volume / 100}
         elif args.audio_command in {"set-mute", "device-mute"}:
             arguments = {"target": args.target, "mute": args.mute == "true"}
+        elif args.audio_command == "default-output":
+            arguments = {"target": args.target}
         return await call(
             path, "actions.execute", {"capability": capability, "arguments": arguments}
         )
@@ -102,6 +105,9 @@ def entrypoint() -> int:
     audio = sub.add_parser("audio").add_subparsers(dest="audio_command", required=True)
     audio.add_parser("list")
     audio.add_parser("devices")
+    audio.add_parser("default-output").add_argument(
+        "target", help="Exact output ID; separate routing permission"
+    )
     device_volume = audio.add_parser("device-volume")
     device_volume.add_argument("target", help="Exact device ID from audio devices")
     device_volume.add_argument(

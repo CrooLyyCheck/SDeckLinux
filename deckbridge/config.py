@@ -42,6 +42,8 @@ class AudioConfig:
     allow_output_write: bool = False
     allow_input_write: bool = False
     allowed_devices: tuple[str, ...] = ()
+    allow_default_output_write: bool = False
+    allowed_default_outputs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ class Config:
     streamdeck_webview_software: bool = True
     wine_font_fallback: bool = True
     windows_core_audio: bool = False
+    windows_default_output: bool = False
 
 
 def absolute(value: object) -> Path:
@@ -124,6 +127,8 @@ def load(path: Path) -> Config:
             "allow_output_write",
             "allow_input_write",
             "allowed_devices",
+            "allow_default_output_write",
+            "allowed_default_outputs",
         }
         or not isinstance(compat, dict)
         or set(compat) - {"volume_controller", "sdeck", "windows"}
@@ -140,10 +145,15 @@ def load(path: Path) -> Config:
     if type(font_fallback) is not bool:
         raise BridgeError("invalid_webview_config")
     core_audio = windows.get("core_audio", {})
-    if not isinstance(core_audio, dict) or set(core_audio) - {"enabled"}:
+    if not isinstance(core_audio, dict) or set(core_audio) - {"enabled", "default_output"}:
         raise BridgeError("invalid_audio_config")
     core_audio_enabled = core_audio.get("enabled", False)
-    if type(core_audio_enabled) is not bool:
+    default_output_enabled = core_audio.get("default_output", False)
+    if (
+        type(core_audio_enabled) is not bool
+        or type(default_output_enabled) is not bool
+        or (default_output_enabled and not core_audio_enabled)
+    ):
         raise BridgeError("invalid_audio_config")
     if not isinstance(adapter, dict) or set(adapter) - {"enabled", "display", "hide_event_streams"}:
         raise BridgeError("invalid_audio_config")
@@ -166,6 +176,8 @@ def load(path: Path) -> Config:
         audio.get("allow_input_write", False),
     )
     allowed_devices = audio.get("allowed_devices", [])
+    default_write = audio.get("allow_default_output_write", False)
+    allowed_default_outputs = audio.get("allowed_default_outputs", [])
     display = adapter.get("display", "icons")
     hide_events = adapter.get("hide_event_streams", True)
     if (
@@ -179,6 +191,7 @@ def load(path: Path) -> Config:
                 hide_events,
                 output_write,
                 input_write,
+                default_write,
             )
         )
         or display not in ("icons", "text")
@@ -189,8 +202,11 @@ def load(path: Path) -> Config:
         or (system_write and not enabled)
         or ((input_write or output_write) and not enabled)
         or (core_audio_enabled and not enabled)
+        or (default_write and not enabled)
         or not isinstance(allowed_devices, list)
         or any(not isinstance(v, str) or not v or len(v) > 512 for v in allowed_devices)
+        or not isinstance(allowed_default_outputs, list)
+        or any(not isinstance(v, str) or not v or len(v) > 512 for v in allowed_default_outputs)
     ):
         raise BridgeError("invalid_audio_config")
     return Config(
@@ -208,6 +224,8 @@ def load(path: Path) -> Config:
             output_write,
             input_write,
             tuple(allowed_devices),
+            default_write,
+            tuple(allowed_default_outputs),
         ),
         adapter_enabled,
         display,
@@ -216,4 +234,5 @@ def load(path: Path) -> Config:
         webview_software,
         font_fallback,
         core_audio_enabled,
+        default_output_enabled,
     )

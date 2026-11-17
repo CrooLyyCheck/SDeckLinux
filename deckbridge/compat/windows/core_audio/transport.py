@@ -24,6 +24,8 @@ MAGIC = b"DBA2"
 NULL_CONTEXT = bytes(16)
 READ_MAX_AGE = 0.25  # Native events invalidate earlier; setters always verify fresh state.
 E_FAIL, E_INVALIDARG, E_ACCESSDENIED = 0x80004005, 0x80070057, 0x80070005
+E_NOTIMPL, E_NOTFOUND = 0x80004001, 0x80070490
+NAME_LENGTH = struct.Struct("<I")
 
 
 class PeerHints:
@@ -139,14 +141,28 @@ def response(status: int, device=None, context=NULL_CONTEXT) -> bytes:
     )
 
 
+def default_response(status: int, device=None) -> bytes:
+    if status:
+        return response(status)
+    name = device.name.encode("utf-8")
+    if not 0 < len(name) <= 4096:
+        return response(E_FAIL)
+    return response(0, device) + NAME_LENGTH.pack(len(name)) + name
+
+
 async def dispatch(
-    backend: DeviceBackend, header: bytes, name_bytes: bytes, on_change=None, snapshot=None
+    backend: DeviceBackend,
+    header: bytes,
+    name_bytes: bytes,
+    on_change=None,
+    snapshot=None,
+    defaults=None,
 ) -> bytes:
     try:
         magic, operation, flow, length, value, context = REQUEST.unpack(header)
         if (
             magic != MAGIC
-            or operation not in (0, 1, 2, 3)
+            or operation not in (0, 1, 2, 3, 4, 5, 6)
             or flow not in (0, 1)
             or length != len(name_bytes)
             or length > 4096
@@ -154,6 +170,13 @@ async def dispatch(
         ):
             return response(E_INVALIDARG)
         name = name_bytes.decode("utf-8")
+        if operation in (4, 5, 6):
+            if defaults is None or flow != 0 or (operation == 4 and value == 2):
+                return response(E_NOTIMPL)
+            if (operation == 4 and (not name or value not in (0, 1))) or (
+                operation in (5, 6) and (name or value != 0)
+            ):
+                return response(E_INVALIDARG)
         if (
             "\x00" in name
             or (operation == 1 and not 0 <= value <= 1)
@@ -162,7 +185,7 @@ async def dispatch(
             return response(E_INVALIDARG)
         direction = "output" if flow == 0 else "input"
         devices = (
-            await snapshot(force=operation in (1, 2))
+            await snapshot(force=operation in (1, 2, 4))
             if snapshot is not None
             else await backend.inventory()
         )
@@ -175,13 +198,18 @@ async def dispatch(
             None,
         )
         if device is None:
+            if operation in (5, 6):
+                return response(E_NOTFOUND)
             return response(E_FAIL)
-        if operation in (1, 2):
-            await backend.set_target(
-                device.id,
-                **({"volume": value} if operation == 1 else {"mute": bool(value)}),
-                **({"require_default": True} if not name else {}),
-            )
+        if operation in (1, 2, 4):
+            if operation == 4:
+                await defaults.set_target(device.id)
+            else:
+                await backend.set_target(
+                    device.id,
+                    **({"volume": value} if operation == 1 else {"mute": bool(value)}),
+                    **({"require_default": True} if not name else {}),
+                )
             devices = (
                 await snapshot(force=True) if snapshot is not None else await backend.inventory()
             )
@@ -190,16 +218,28 @@ async def dispatch(
                 return response(E_FAIL)
             if on_change is not None:
                 await on_change(device, context, devices)
+        if operation in (5, 6):
+            return default_response(0, device)
         return response(0, device, context if operation in (1, 2) else NULL_CONTEXT)
     except BridgeError as error:
-        return response(E_ACCESSDENIED if error.code == "audio_device_write_disabled" else E_FAIL)
+        return response(
+            E_ACCESSDENIED
+            if error.code in {"audio_device_write_disabled", "audio_default_write_disabled"}
+            else E_FAIL
+        )
     except (UnicodeError, struct.error):
         return response(E_INVALIDARG)
 
 
 @asynccontextmanager
 async def endpoint_server(
-    prefix: Path, library: Path, backend: DeviceBackend, *, port=1845, on_failure=None
+    prefix: Path,
+    library: Path,
+    backend: DeviceBackend,
+    *,
+    port=1845,
+    on_failure=None,
+    defaults=None,
 ):
     clients = set()
     handlers = set()
@@ -228,7 +268,7 @@ async def endpoint_server(
         return cached_devices
 
     async def publish(devices, changed=None, context=NULL_CONTEXT):
-        for writer, (flow, name, previous) in tuple(subscriptions.items()):
+        for writer, (flow, name, previous, default_names) in tuple(subscriptions.items()):
             device = next(
                 (
                     d
@@ -237,7 +277,11 @@ async def endpoint_server(
                 ),
                 None,
             )
-            baseline = response(0, device) if device else response(E_FAIL)
+            baseline = (
+                (default_response(0, device) if device else response(E_NOTFOUND))
+                if default_names
+                else (response(0, device) if device else response(E_FAIL))
+            )
             if baseline == previous:
                 continue
             if writer.transport.get_write_buffer_size() > 4096:
@@ -252,8 +296,14 @@ async def endpoint_server(
                 == (changed.id, changed.channels, changed.mute)
                 else NULL_CONTEXT
             )
-            writer.write(response(0, device, event_context) if device else baseline)
-            subscriptions[writer] = (flow, name, baseline)
+            writer.write(
+                baseline
+                if default_names
+                else response(0, device, event_context)
+                if device
+                else baseline
+            )
+            subscriptions[writer] = (flow, name, baseline, default_names)
 
     async def changed(device, context, devices):
         await publish(devices, device, context)
@@ -337,10 +387,13 @@ async def endpoint_server(
                 operation, flow = REQUEST.unpack(header)[1:3]
                 subscribed = False
                 async with transaction:
-                    if operation == 3:
+                    if operation in (3, 6):
                         async with backend.lock:
-                            result = await dispatch(backend, header, name, snapshot=snapshot)
-                            if RESPONSE.unpack(result)[1] == 0:
+                            result = await dispatch(
+                                backend, header, name, snapshot=snapshot, defaults=defaults
+                            )
+                            status = RESPONSE.unpack_from(result)[1]
+                            if status == 0 or (operation == 6 and status == E_NOTFOUND):
                                 if stats["monitor_failed"]:
                                     result = response(E_FAIL)
                                 else:
@@ -348,12 +401,13 @@ async def endpoint_server(
                                         "output" if flow == 0 else "input",
                                         name.decode("utf-8"),
                                         result,
+                                        operation == 6,
                                     )
                                     subscribed = True
                                     stats["subscribers"] = len(subscriptions)
                     else:
-                        result = await dispatch(backend, header, name, changed, snapshot)
-                stats["writes" if operation in (1, 2) else "reads"] += 1
+                        result = await dispatch(backend, header, name, changed, snapshot, defaults)
+                stats["writes" if operation in (1, 2, 4) else "reads"] += 1
                 writer.write(result)
                 await writer.drain()
             if subscribed:

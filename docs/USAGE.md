@@ -222,6 +222,21 @@ inodes and restart the daemon; they do not require replacing the running app's l
 If an update repaired a COM registration that had reverted to Wine, quit/reopen
 the app once: an existing plugin process can retain the old class factory.
 
+### Optional default-output switching
+
+`[compat.windows.core_audio] default_output = true` opts into the shared policy
+class used by Audio Switcher. It requires `enabled = true` in the same table.
+The normal installer builds and manages this class alongside the existing bridge;
+full Quit/reopen is required when enabling/disabling it or replacing the DLL.
+
+Routing additionally requires `[audio] allow_default_output_write = true`;
+it defaults false independently of all volume permissions.
+`allowed_default_outputs` can restrict exact IDs returned by `deckbridge audio
+devices`. The native command is `deckbridge audio default-output DEVICE_ID`.
+It changes the native output default and can affect default-following playback;
+do not run it as an incidental test. Input and Communications routing are outside
+this first scope. See [implementation and acceptance](compat/plugins/audio-switcher.md).
+
 ## Original plugin settings under Wine
 
 The tested Wine setup uses process-local WebEngine options for renderer startup

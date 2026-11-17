@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from .backends.audio.defaults import DefaultOutputBackend
 from .backends.audio.pipewire import AudioBackend
 from .compat.sdeck.oauth.forwarding import forward
 from .config import Config
@@ -24,6 +25,11 @@ def capabilities(config: Config) -> dict:
             {"name": "desktop.openUrl", "version": 1, "enabled": bool(config.urls)},
             {"name": "audio.sessions.list", "version": 1, "enabled": config.audio.enabled},
             {"name": "audio.devices.list", "version": 1, "enabled": config.audio.enabled},
+            {
+                "name": "audio.output.default",
+                "version": 1,
+                "enabled": config.audio.enabled and config.audio.allow_default_output_write,
+            },
             *[
                 {
                     "name": "audio.device." + operation,
@@ -57,6 +63,15 @@ async def execute(config: Config, params: dict, *, audio: AudioBackend | None = 
     if capability == "oauth.deepLink":
         exact_keys(arguments, {"uri"})
         return await forward(config, arguments["uri"])
+    if capability == "audio.output.default":
+        exact_keys(arguments, {"target"})
+        if audio is None:
+            raise BridgeError("audio_disabled")
+        return await DefaultOutputBackend(
+            audio.devices,
+            allow_write=config.audio.allow_default_output_write,
+            allowed_targets=config.audio.allowed_default_outputs,
+        ).set_target(arguments["target"])
     if capability in {"audio.devices.list", "audio.device.volume", "audio.device.mute"}:
         if audio is None:
             raise BridgeError("audio_disabled")

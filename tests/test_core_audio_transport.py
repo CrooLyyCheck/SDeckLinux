@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from deckbridge.backends.audio.defaults import DefaultOutputBackend
 from deckbridge.backends.audio.devices import DeviceBackend
 from deckbridge.compat.windows.core_audio import transport as rpc
 from deckbridge.protocol import BridgeError
@@ -49,6 +50,38 @@ class CoreAudioDispatchTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertEqual((await self.request(backend, op=1, value=0.25))[1], 0)
             setter.assert_awaited_once_with(device().id, volume=0.25)
+
+    async def test_policy_operations_are_optional_and_reject_input_and_communications(self):
+        backend = DeviceBackend()
+        defaults = DefaultOutputBackend(backend)
+        with patch.object(backend, "inventory", new_callable=AsyncMock) as inventory:
+            for operation, flow, value, policy in (
+                (4, 0, 0, None),
+                (5, 0, 0, None),
+                (6, 0, 0, None),
+                (4, 1, 0, defaults),
+                (4, 0, 2, defaults),
+            ):
+                name = b"speaker" if operation == 4 else b""
+                frame = rpc.REQUEST.pack(
+                    rpc.MAGIC, operation, flow, len(name), value, rpc.NULL_CONTEXT
+                )
+                result = rpc.RESPONSE.unpack(
+                    await rpc.dispatch(backend, frame, name, defaults=policy)
+                )
+                self.assertEqual(result[1], rpc.E_NOTIMPL)
+            inventory.assert_not_called()
+
+    async def test_policy_setter_has_an_independent_write_gate(self):
+        backend = DeviceBackend(allow_output=True)
+        with patch.object(backend, "inventory", new_callable=AsyncMock, return_value=[device()]):
+            frame = rpc.REQUEST.pack(rpc.MAGIC, 4, 0, 7, 0, rpc.NULL_CONTEXT)
+            result = rpc.RESPONSE.unpack(
+                await rpc.dispatch(
+                    backend, frame, b"speaker", defaults=DefaultOutputBackend(backend)
+                )
+            )
+            self.assertEqual(result[1], rpc.E_ACCESSDENIED)
 
     async def test_invalid_frames_never_reach_backend(self):
         backend = DeviceBackend()
@@ -229,6 +262,41 @@ class CoreAudioSocketTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(result[3], 1)
             self.assertEqual(self.backend.inventory.await_count, 2)
+            writer.close()
+            await writer.wait_closed()
+
+    async def test_default_subscription_identifies_a_new_output_even_with_identical_levels(self):
+        defaults = DefaultOutputBackend(self.backend)
+        async with rpc.endpoint_server(
+            Path("/prefix"), self.library, self.backend, port=0, defaults=defaults
+        ) as (port, _):
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            await asyncio.wait_for(reader.readexactly(36), 2)
+            writer.write(rpc.REQUEST.pack(rpc.MAGIC, 6, 0, 0, 0, rpc.NULL_CONTEXT))
+            await writer.drain()
+
+            async def read_default():
+                frame = rpc.RESPONSE.unpack(
+                    await asyncio.wait_for(reader.readexactly(rpc.RESPONSE.size), 2)
+                )
+                size = rpc.NAME_LENGTH.unpack(await reader.readexactly(4))[0]
+                return frame, await reader.readexactly(size)
+
+            initial, name = await read_default()
+            self.assertEqual(name, b"speaker")
+            self.backend.inventory.return_value = [
+                dataclasses.replace(device(), name="second", id="second-id")
+            ]
+            self.queue.put_nowait(b"Event 'change' on server #0\n")
+            updated, name = await read_default()
+            self.assertEqual(name, b"second")
+            self.assertEqual(initial[2:5], updated[2:5])
+            self.backend.inventory.return_value = []
+            self.queue.put_nowait(b"Event 'remove' on sink #12\n")
+            missing = rpc.RESPONSE.unpack(
+                await asyncio.wait_for(reader.readexactly(rpc.RESPONSE.size), 2)
+            )
+            self.assertEqual(missing[1], rpc.E_NOTFOUND)
             writer.close()
             await writer.wait_closed()
 

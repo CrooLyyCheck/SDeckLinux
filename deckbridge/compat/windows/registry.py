@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -11,6 +12,39 @@ from collections.abc import Callable
 from pathlib import Path
 
 Backup = Callable[[str, bytes], None]
+
+
+def query_string(prefix: Path, key: str, name: str) -> str | None:
+    selector = ["/ve"] if name == "default" else ["/v", name]
+    code, output = reg(prefix, ["query", key, *selector])
+    if code == 1:
+        return None
+    matches = re.findall(rb"^\s+[^\r\n]+?\s+REG_SZ\s+([^\r\n]+)\r?$", output, re.M)
+    if code or len(matches) != 1:
+        raise RuntimeError("Unsupported registry string; preserving it")
+    try:
+        value = matches[0].strip().decode("utf-8")
+    except UnicodeError:
+        raise RuntimeError("Unsupported registry string; preserving it") from None
+    if name == "default" and value == "(value not set)":
+        return None
+    if not value or len(value) > 32760:
+        raise RuntimeError("Unsupported registry string; preserving it")
+    return value
+
+
+def key_empty(prefix: Path, key: str) -> bool | None:
+    code, output = reg(prefix, ["query", key, "/s"])
+    if code == 1:
+        return None
+    if code:
+        raise RuntimeError("Registry ownership query failed")
+    try:
+        lines = [line.strip() for line in output.decode("utf-8").splitlines() if line.strip()]
+    except UnicodeError:
+        raise RuntimeError("Unsupported registry contents; preserving them") from None
+    full = key.replace("HKLM\\", "HKEY_LOCAL_MACHINE\\", 1)
+    return not lines or (len(lines) == 1 and lines[0].casefold() == full.casefold())
 
 
 def owned_prefix(prefix: Path, data: Path) -> bool:

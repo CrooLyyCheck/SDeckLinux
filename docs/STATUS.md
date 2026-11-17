@@ -1,5 +1,35 @@
 # Status — 2026-11-17, Europe/Warsaw
 
+## Audio Devices: Set Audio Device output switching accepted
+
+The installed Audio Switcher 3.2.0.90 contract was audited against its pinned
+AudioDeviceLib source. Shared `IPolicyConfigVista` support now implements Output
+Default selection, native default readback and physical-endpoint change
+notifications. Input/Communications writes and unrelated policy methods are
+explicitly unsupported. The backend/CLI expose `audio.output.default` with a
+separate default-off permission and optional output-ID allowlist.
+
+The native library and dedicated policy probe build with warnings-as-errors.
+Real Wine COM reads identify the physical native default with correct interface
+identity/lifetime. A memory-only test passed selection, getter, matching Windows
+callback and restoration; its two RPC writes invoked zero host setters. The
+native defaults were unchanged. The original volume COM probe still passes.
+Policy COM registration/readback/rollback restored its original absence on the
+real prefix, without audio mutations. **179 hardware-free tests pass**.
+
+After the authorized app shutdown, the guided update installed the new library,
+enabled the separate policy/routing gates and restarted Stream Deck. The original
+Audio Switcher process maps the current installed library, and its service is
+listening without rejected requests or monitor failure. The update itself issued
+no routing command. In the separately authorized manual test, the user selected
+Output / Default and the current Virtuoso Wireless entry, pressed the original
+Set Audio Device key and confirmed successful switching. A native read observed
+Virtuoso Wireless as the default, with one bridge write and zero rejected
+requests. Toggle, switching back, independent key-indicator behavior, Input and
+Communications are not established by this test. Details:
+[Audio Switcher scope](compat/plugins/audio-switcher.md),
+[ADR 0005](adr/0005-default-output-policy.md).
+
 ## Installed Core Audio controls and latency follow-up
 
 The shared Core Audio boundary is integrated into the standard installer and

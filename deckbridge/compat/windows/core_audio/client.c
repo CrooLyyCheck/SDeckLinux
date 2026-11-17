@@ -16,7 +16,7 @@ typedef struct {
 } DBRequest;
 _Static_assert(sizeof(DBRequest) == 32, "request ABI");
 _Static_assert(sizeof(DBReply) == 292, "reply ABI");
-struct DBSubscription { SOCKET socket; };
+struct DBSubscription { SOCKET socket; BOOL defaults; };
 
 static BOOL remaining_timeout(SOCKET socket_fd, int option, ULONGLONG deadline)
 {
@@ -86,8 +86,23 @@ static HRESULT validate_reply(const DBReply *reply)
     return (HRESULT)reply->status;
 }
 
+static HRESULT receive_name(SOCKET socket_fd, DBEndpointIdentity *identity, ULONGLONG deadline)
+{
+    DWORD length;
+    char name[4096];
+    int count;
+    if (!identity) return E_POINTER;
+    if (!receive_all(socket_fd,&length,sizeof(length),deadline) || !length || length>sizeof(name)) return E_FAIL;
+    if (!receive_all(socket_fd,name,(int)length,deadline) || memchr(name,0,length)) return E_FAIL;
+    count=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,name,(int)length,identity->name,4095);
+    if (!count) return E_FAIL;
+    identity->name[count]=0;
+    identity->follows_default=FALSE;
+    return S_OK;
+}
+
 static HRESULT audio_open(const DBEndpointIdentity *identity, WORD operation, float value,
-        LPCGUID context, DBReply *reply, DBSubscription **subscription)
+        LPCGUID context, DBReply *reply, DBSubscription **subscription, DBEndpointIdentity *default_name)
 {
     WSADATA data;
     SOCKET socket_fd = INVALID_SOCKET;
@@ -101,6 +116,7 @@ static HRESULT audio_open(const DBEndpointIdentity *identity, WORD operation, fl
     unsigned long port = 1845;
     HRESULT hr = HRESULT_FROM_WIN32(ERROR_SERVICE_NOT_ACTIVE);
     if (!reply) return E_POINTER;
+    if (default_name) { ZeroMemory(default_name,sizeof(*default_name)); default_name->flow=identity->flow; }
     if (context) request.context = *context;
     ZeroMemory(reply, sizeof(*reply));
     if (!read_token(token)) return E_ACCESSDENIED;
@@ -146,11 +162,13 @@ static HRESULT audio_open(const DBEndpointIdentity *identity, WORD operation, fl
             !send_all(socket_fd, name, (int)request.length, deadline)) goto done;
     if (!receive_all(socket_fd, reply, sizeof(*reply), deadline)) goto done;
     hr = validate_reply(reply);
-    if (SUCCEEDED(hr) && subscription) {
+    if (SUCCEEDED(hr) && default_name) hr=receive_name(socket_fd,default_name,deadline);
+    if ((SUCCEEDED(hr) || (operation==6 && hr==HRESULT_FROM_WIN32(ERROR_NOT_FOUND))) && subscription) {
         *subscription = CoTaskMemAlloc(sizeof(**subscription));
         if (!*subscription) { hr = E_OUTOFMEMORY; goto done; }
         (*subscription)->socket = socket_fd;
-        return hr; /* Subscription retains both socket and Winsock reference. */
+        (*subscription)->defaults = operation==6;
+        return S_OK; /* A default subscription can start without an active device. */
     }
 done:
     if (socket_fd != INVALID_SOCKET) closesocket(socket_fd);
@@ -161,17 +179,17 @@ done:
 HRESULT db_audio_call(const DBEndpointIdentity *identity, WORD operation, float value,
         LPCGUID context, DBReply *reply)
 {
-    return audio_open(identity, operation, value, context, reply, NULL);
+    return audio_open(identity, operation, value, context, reply, NULL, NULL);
 }
 
 HRESULT db_audio_subscribe(const DBEndpointIdentity *identity, DBReply *reply, DBSubscription **result)
 {
     if (!result) return E_POINTER;
     *result = NULL;
-    return audio_open(identity, 3, 0, NULL, reply, result);
+    return audio_open(identity, 3, 0, NULL, reply, result, NULL);
 }
 
-HRESULT db_audio_next(DBSubscription *subscription, HANDLE stop, DBReply *reply)
+static HRESULT audio_next(DBSubscription *subscription, HANDLE stop, DBReply *reply, DBEndpointIdentity *identity)
 {
     SOCKET socket_fd = subscription->socket;
     while (WaitForSingleObject(stop, 0) == WAIT_TIMEOUT) {
@@ -183,10 +201,43 @@ HRESULT db_audio_next(DBSubscription *subscription, HANDLE stop, DBReply *reply)
         ready = select(0, &reads, NULL, NULL, &wait);
         if (ready == SOCKET_ERROR) return E_FAIL;
         if (!ready) continue;
-        if (!receive_all(socket_fd, reply, sizeof(*reply), GetTickCount64() + RPC_DEADLINE_MS)) return E_FAIL;
-        return validate_reply(reply);
+        ULONGLONG deadline=GetTickCount64()+RPC_DEADLINE_MS;
+        if (!receive_all(socket_fd, reply, sizeof(*reply), deadline)) return E_FAIL;
+        HRESULT hr=validate_reply(reply);
+        if (SUCCEEDED(hr) && subscription->defaults) hr=receive_name(socket_fd,identity,deadline);
+        return hr;
     }
     return S_FALSE;
+}
+
+HRESULT db_audio_next(DBSubscription *subscription,HANDLE stop,DBReply *reply)
+{ return audio_next(subscription,stop,reply,NULL); }
+
+HRESULT db_audio_default(DBEndpointIdentity *identity)
+{
+    DBEndpointIdentity request;
+    DBReply reply;
+    if (!identity) return E_POINTER;
+    ZeroMemory(&request,sizeof(request)); request.flow=eRender;
+    return audio_open(&request,5,0,NULL,&reply,NULL,identity);
+}
+
+HRESULT db_audio_subscribe_default(DBEndpointIdentity *identity,DBSubscription **result)
+{
+    DBEndpointIdentity request;
+    DBReply reply;
+    if (!identity || !result) return E_POINTER;
+    *result=NULL;
+    ZeroMemory(&request,sizeof(request)); request.flow=eRender;
+    return audio_open(&request,6,0,NULL,&reply,result,identity);
+}
+
+HRESULT db_audio_next_default(DBSubscription *subscription,HANDLE stop,DBEndpointIdentity *identity)
+{
+    DBReply reply;
+    if (!identity) return E_POINTER;
+    ZeroMemory(identity,sizeof(*identity)); identity->flow=eRender;
+    return audio_next(subscription,stop,&reply,identity);
 }
 
 void db_audio_close(DBSubscription *subscription)

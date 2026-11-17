@@ -53,6 +53,7 @@ boundaries are in [STATUS.md](STATUS.md).
 | :---: | --- | --- | --- |
 | 🟡 | Elgato Volume Controller | `2.0.5.201` | Auto app discovery, app/System output volume, icons/text and event-stream filtering. With optional shared [Core Audio support](compat/windows/core-audio.md), Output Device Control works for a selected Virtuoso output and Default; isolated volume/mute/restore passed. Faster response confirmed by the user after optimization/restart; exact timing measured at the API boundary. Input hardware, physical mute, Manual Detection and dials remain unverified. [Details and limits](compat/plugins/volume-controller.md). |
 | ⚪ | Elgato Tutorial | `1.0.4.3` | No functional coverage. |
+| 🟡 | Audio Switcher / Audio Devices | `3.2.0.90` | Set Audio Device → Output / Default switches to the selected Virtuoso Wireless output, confirmed through the original key and native readback. Toggle, switching back and independent key-indicator behavior remain unverified. Input and Communications routing are unsupported. [Scope](compat/plugins/audio-switcher.md). |
 | ⚪ | Other plugins / versions | — | Other consumers of the shared Core Audio boundary and other plugin versions require separate acceptance. |
 
 Volume Controller uses an exact version/hash contract. Direct PipeWire streams
